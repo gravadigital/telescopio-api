@@ -1,0 +1,52 @@
+# Ignore development files
+.env
+.env.local
+.env.*.local
+
+# Ignore Git
+.git
+.gitignore
+
+# Ignore Docker files
+Dockerfile*
+docker-compose*
+
+# Ignore documentation
+README.md
+*.md
+
+# Ignore IDE files
+.vscode
+.idea
+*.swp
+*.swo
+
+# Ignore OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Ignore build artifacts
+main
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Ignore uploads directory (will be created in container)
+uploads/
+
+# Ignore test files
+*_test.go
+test/
+coverage.txt
+
+# Ignore temporary files
+tmp/
+temp/
+*.tmp
+*.log
