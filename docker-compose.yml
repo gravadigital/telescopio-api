@@ -1,0 +1,88 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: telescopio-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: telescopio_db
+      POSTGRES_USER: telescopio
+      POSTGRES_PASSWORD: telescopio_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - telescopio-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U telescopio -d telescopio_db"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: telescopio-api
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: telescopio
+      DB_PASSWORD: telescopio_password
+      DB_NAME: telescopio_db
+      DB_SSLMODE: disable
+      
+      PORT: 8080
+      GIN_MODE: release
+      
+      UPLOADS_DIR: /app/uploads
+      MAX_FILE_SIZE: 10485760
+      
+      CORS_ALLOW_ORIGINS: "*"
+      CORS_ALLOW_METHODS: "GET,POST,PUT,PATCH,DELETE,HEAD,OPTIONS"
+      CORS_ALLOW_HEADERS: "Origin,Content-Length,Content-Type,Authorization"
+    volumes:
+      - uploads_data:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - telescopio-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # optional
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: telescopio-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@telescopio.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    networks:
+      - telescopio-network
+    profiles:
+      - tools
+
+volumes:
+  postgres_data:
+    driver: local
+  uploads_data:
+    driver: local
+
+networks:
+  telescopio-network:
+    driver: bridge
