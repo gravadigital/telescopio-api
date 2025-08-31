@@ -1,0 +1,107 @@
+version: '3.8'
+
+# Development Docker Compose Configuration
+# This file includes additional services for development
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: telescopio-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: telescopio_db
+      POSTGRES_USER: telescopio
+      POSTGRES_PASSWORD: telescopio_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data
+    networks:
+      - telescopio-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U telescopio -d telescopio_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: telescopio-pgadmin-dev
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@telescopio.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "5050:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - telescopio-network
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+
+  # for future caching needs
+  redis:
+    image: redis:7-alpine
+    container_name: telescopio-redis-dev
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - telescopio-network
+    profiles:
+      - with-redis
+
+  # development mode with hot reload
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: telescopio-api-dev
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: telescopio
+      DB_PASSWORD: telescopio_password
+      DB_NAME: telescopio_db
+      DB_SSLMODE: disable
+      
+      PORT: 8080
+      GIN_MODE: debug
+      
+      UPLOADS_DIR: /app/uploads
+      MAX_FILE_SIZE: 10485760
+      
+      CORS_ALLOW_ORIGINS: "*"
+      CORS_ALLOW_METHODS: "GET,POST,PUT,PATCH,DELETE,HEAD,OPTIONS"
+      CORS_ALLOW_HEADERS: "Origin,Content-Length,Content-Type,Authorization"
+    volumes:
+      - .:/app
+      - uploads_data_dev:/app/uploads
+      - go_cache:/go/pkg/mod
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - telescopio-network
+    profiles:
+      - with-api
+
+volumes:
+  postgres_data_dev:
+    driver: local
+  pgadmin_data:
+    driver: local
+  uploads_data_dev:
+    driver: local
+  go_cache:
+    driver: local
+
+networks:
+  telescopio-network:
+    driver: bridge
