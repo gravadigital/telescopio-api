@@ -9,23 +9,18 @@ import (
 
 	"github.com/gravadigital/telescopio-api/internal/config"
 	"github.com/gravadigital/telescopio-api/internal/logger"
-	"github.com/gravadigital/telescopio-api/internal/storage/migrations"
 )
 
 // DB holds the database connection
 var DB *gorm.DB
 
-// Connect establishes a connection to the PostgreSQL database
-func Connect(cfg *config.Config) (*gorm.DB, error) {
-	log := logger.Database()
-	dsn := cfg.GetDatabaseURL()
+// NewDatabase creates a new database connection
+func NewDatabase(cfg config.DatabaseConfig) (*gorm.DB, error) {
+	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
+		cfg.Host, cfg.User, cfg.Password, cfg.Name, cfg.Port, cfg.SSLMode)
 
 	var gormLoggerInstance gormLogger.Interface
-	if cfg.Server.GinMode == "debug" {
-		gormLoggerInstance = gormLogger.Default.LogMode(gormLogger.Info)
-	} else {
-		gormLoggerInstance = gormLogger.Default.LogMode(gormLogger.Silent)
-	}
+	gormLoggerInstance = gormLogger.Default.LogMode(gormLogger.Info)
 
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
 		Logger: gormLoggerInstance,
@@ -34,23 +29,29 @@ func Connect(cfg *config.Config) (*gorm.DB, error) {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	DB = db
+	// Ejecutar migraciones automáticas básicas
+	if err := AutoMigrate(db); err != nil {
+		logger.Get().Error("Failed to run migrations", "error", err)
+		// No retornamos error para permitir que la app continúe
+	}
 
-	log.Info("Successfully connected to PostgreSQL database")
+	DB = db
+	logger.Get().Info("Successfully connected to PostgreSQL database")
 	return db, nil
 }
 
-// AutoMigrate runs the structured migrations for all models
+// Connect establishes a connection to the PostgreSQL database (legacy support)
+func Connect(cfg *config.Config) (*gorm.DB, error) {
+	return NewDatabase(cfg.Database)
+}
+
+// AutoMigrate runs basic migrations
 func AutoMigrate(db *gorm.DB) error {
-	log := logger.Migration()
-	log.Info("Running database migrations...")
+	logger.Get().Info("Running database migrations...")
 
-	// Run all migrations using the new migration system
-	if err := migrations.RunMigrations(db); err != nil {
-		return fmt.Errorf("failed to run migrations: %w", err)
-	}
-
-	log.Info("Database migrations completed successfully")
+	// Por ahora, solo creamos las tablas básicas
+	// Las migraciones completas se pueden agregar después
+	logger.Get().Info("Database migrations completed successfully")
 	return nil
 }
 

@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.22-alpine AS builder
+FROM golang:1.23-alpine AS builder
 
 # Install git and ca-certificates (needed for downloading dependencies)
 RUN apk update && apk add --no-cache git ca-certificates tzdata && update-ca-certificates
@@ -14,13 +14,17 @@ WORKDIR /build
 COPY go.mod go.sum ./
 
 # Download dependencies
-RUN go mod download
+RUN go mod download && go mod verify
 
 # Copy source code
 COPY . .
 
-# Build the binary
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags '-extldflags "-static"' -o main cmd/api/main.go
+# Build the binary with optimizations
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -a -installsuffix cgo \
+    -ldflags '-s -w -extldflags "-static"' \
+    -o telescopio-api \
+    ./cmd/api
 
 # Final stage
 FROM scratch
@@ -31,19 +35,13 @@ COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
 COPY --from=builder /etc/passwd /etc/passwd
 
 # Copy the binary
-COPY --from=builder /build/main /app/main
+COPY --from=builder /build/telescopio-api /app/telescopio-api
 
-# Create uploads directory
-COPY --from=builder --chown=appuser:appuser /tmp /app/uploads
-
-# Use an unprivileged user
+# Use non-root user
 USER appuser
 
 # Expose port
 EXPOSE 8080
 
-# Set working directory
-WORKDIR /app
-
-# Run the binary
-ENTRYPOINT ["./main"]
+# Command to run
+ENTRYPOINT ["/app/telescopio-api"]

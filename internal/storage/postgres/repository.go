@@ -1,6 +1,8 @@
 package postgres
 
 import (
+	"gorm.io/gorm"
+
 	"github.com/gravadigital/telescopio-api/internal/domain/attachment"
 	"github.com/gravadigital/telescopio-api/internal/domain/event"
 	"github.com/gravadigital/telescopio-api/internal/domain/participant"
@@ -14,6 +16,8 @@ type EventRepository interface {
 	GetAll() ([]*event.Event, error)
 	GetByAuthor(authorID string) ([]*event.Event, error)
 	GetByParticipant(participantID string) ([]*event.Event, error)
+	Update(event *event.Event) error
+	Delete(id string) error
 	UpdateStage(eventID string, stage event.Stage) error
 	AddParticipant(eventID, userID string) error
 	RemoveParticipant(eventID, userID string) error
@@ -48,6 +52,36 @@ type VoteRepository interface {
 	GetByAttachmentID(attachmentID string) ([]*vote.Vote, error)
 	HasVoted(eventID, voterID string) (bool, error)
 	GetEventResults(eventID string) (map[string]int, error) // attachment_id -> vote_count
+}
+
+// Constructor functions
+
+// NewEventRepository creates a new event repository
+func NewEventRepository(db *gorm.DB) EventRepository {
+	// Para desarrollo, usar in-memory, para producción usar PostgreSQL
+	if db != nil {
+		return NewPostgresEventRepository(db)
+	}
+	return NewInMemoryEventRepository()
+}
+
+// NewUserRepository creates a new user repository
+func NewUserRepository(db *gorm.DB) UserRepository {
+	// Para desarrollo usar in-memory por ahora
+	return NewInMemoryUserRepository()
+}
+
+// NewAttachmentRepository creates a new attachment repository
+func NewAttachmentRepository(db *gorm.DB) AttachmentRepository {
+	if db != nil {
+		return NewPostgresAttachmentRepository(db)
+	}
+	return NewInMemoryAttachmentRepository()
+}
+
+// NewVoteRepository creates a new vote repository
+func NewVoteRepository(db *gorm.DB) VoteRepository {
+	return NewInMemoryVoteRepository()
 }
 
 // Aquí iría la configuración de la conexión a la DB (sqlx, gorm, etc.)

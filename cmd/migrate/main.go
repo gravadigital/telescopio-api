@@ -12,10 +12,14 @@ import (
 )
 
 func main() {
-	cfg := config.Load()
+	cfg, err := config.Load()
+	if err != nil {
+		fmt.Printf("Failed to load config: %v\n", err)
+		os.Exit(1)
+	}
 
 	logger.Initialize("info")
-	log := logger.Migration()
+	log := logger.Get()
 
 	rollback := flag.Bool("rollback", false, "Rollback the last migration")
 	flag.Parse()

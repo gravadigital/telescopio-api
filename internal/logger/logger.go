@@ -9,6 +9,11 @@ import (
 
 var Logger *log.Logger
 
+// Init initializes the logger with default settings
+func Init() {
+	Initialize("info")
+}
+
 // Initialize sets up the global logger with Charm's log library
 func Initialize(logLevel string) {
 	Logger = log.New(os.Stderr)

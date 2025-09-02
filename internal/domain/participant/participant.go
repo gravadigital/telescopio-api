@@ -1,14 +1,34 @@
 package participant
 
-import "slices"
+import (
+	"slices"
+	"time"
+
+	"github.com/google/uuid"
+)
 
 type User struct {
-	ID              string   `json:"id" db:"id"`
-	Name            string   `json:"name" db:"name"`
-	LastName        string   `json:"lastname" db:"lastname"`
-	JoinedEventIDs  []string `json:"joined_event_ids" db:"joined_event_ids"`
-	CreatedEventIDs []string `json:"created_event_ids" db:"created_event_ids"`
-	Role            string   `json:"role" db:"role"`
+	ID              string    `json:"id" db:"id"`
+	Name            string    `json:"name" db:"name"`
+	Email           string    `json:"email" db:"email"`
+	LastName        string    `json:"lastname" db:"lastname"`
+	JoinedEventIDs  []string  `json:"joined_event_ids" db:"joined_event_ids"`
+	CreatedEventIDs []string  `json:"created_event_ids" db:"created_event_ids"`
+	Role            string    `json:"role" db:"role"`
+	CreatedAt       time.Time `json:"created_at" db:"created_at"`
+}
+
+// NewUser crea un nuevo usuario
+func NewUser(name, email string) *User {
+	return &User{
+		ID:              uuid.New().String(),
+		Name:            name,
+		Email:           email,
+		JoinedEventIDs:  make([]string, 0),
+		CreatedEventIDs: make([]string, 0),
+		Role:            "participant",
+		CreatedAt:       time.Now(),
+	}
 }
 
 // JoinEvent agrega un evento a la lista de eventos en los que participa

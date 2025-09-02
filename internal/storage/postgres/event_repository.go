@@ -200,3 +200,127 @@ func (r *PostgresEventRepository) RemoveParticipant(eventID, userID string) erro
 	r.log.Info("participant removed from event successfully", "event_id", eventID, "user_id", userID)
 	return nil
 }
+
+// Update updates an existing event
+func (r *PostgresEventRepository) Update(event *event.Event) error {
+	r.log.Debug("updating event", "event_id", event.ID, "name", event.Name)
+
+	if err := r.db.Save(event).Error; err != nil {
+		r.log.Error("failed to update event", "event_id", event.ID, "error", err)
+		return err
+	}
+
+	r.log.Info("event updated successfully", "event_id", event.ID, "name", event.Name)
+	return nil
+}
+
+// Delete deletes an event by ID
+func (r *PostgresEventRepository) Delete(id string) error {
+	r.log.Debug("deleting event", "event_id", id)
+
+	eventUUID, err := uuid.Parse(id)
+	if err != nil {
+		r.log.Error("invalid event ID format", "event_id", id, "error", err)
+		return errors.New("invalid event ID format")
+	}
+
+	if err := r.db.Delete(&event.Event{}, eventUUID).Error; err != nil {
+		r.log.Error("failed to delete event", "event_id", id, "error", err)
+		return err
+	}
+
+	r.log.Info("event deleted successfully", "event_id", id)
+	return nil
+}
+
+// InMemoryEventRepository - Simple in-memory implementation for development
+type InMemoryEventRepository struct {
+	events map[string]*event.Event
+}
+
+func NewInMemoryEventRepository() *InMemoryEventRepository {
+	return &InMemoryEventRepository{
+		events: make(map[string]*event.Event),
+	}
+}
+
+func (r *InMemoryEventRepository) Create(event *event.Event) error {
+	r.events[event.ID] = event
+	return nil
+}
+
+func (r *InMemoryEventRepository) GetByID(id string) (*event.Event, error) {
+	event, exists := r.events[id]
+	if !exists {
+		return nil, errors.New("event not found")
+	}
+	return event, nil
+}
+
+func (r *InMemoryEventRepository) GetAll() ([]*event.Event, error) {
+	var events []*event.Event
+	for _, event := range r.events {
+		events = append(events, event)
+	}
+	return events, nil
+}
+
+func (r *InMemoryEventRepository) GetByAuthor(authorID string) ([]*event.Event, error) {
+	var events []*event.Event
+	for _, event := range r.events {
+		if event.AuthorID == authorID {
+			events = append(events, event)
+		}
+	}
+	return events, nil
+}
+
+func (r *InMemoryEventRepository) GetByParticipant(participantID string) ([]*event.Event, error) {
+	var events []*event.Event
+	for _, event := range r.events {
+		for _, pid := range event.ParticipantIDs {
+			if pid == participantID {
+				events = append(events, event)
+				break
+			}
+		}
+	}
+	return events, nil
+}
+
+func (r *InMemoryEventRepository) Update(event *event.Event) error {
+	r.events[event.ID] = event
+	return nil
+}
+
+func (r *InMemoryEventRepository) Delete(id string) error {
+	delete(r.events, id)
+	return nil
+}
+
+func (r *InMemoryEventRepository) UpdateStage(eventID string, stage event.Stage) error {
+	event, exists := r.events[eventID]
+	if !exists {
+		return errors.New("event not found")
+	}
+	event.Stage = stage
+	return nil
+}
+
+func (r *InMemoryEventRepository) AddParticipant(eventID, userID string) error {
+	event, exists := r.events[eventID]
+	if !exists {
+		return errors.New("event not found")
+	}
+	event.AddParticipant(userID)
+	return nil
+}
+
+func (r *InMemoryEventRepository) RemoveParticipant(eventID, userID string) error {
+	event, exists := r.events[eventID]
+	if !exists {
+		return errors.New("event not found")
+	}
+	event.RemoveParticipant(userID)
+	return nil
+}
