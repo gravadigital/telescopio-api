@@ -90,7 +90,7 @@ func (h *EventHandler) CreateEvent(c *gin.Context) {
 	// Business validation for dates
 	now := time.Now()
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-	
+
 	if startDate.Before(today) {
 		h.log.Warn("start_date is in the past", "start_date", req.StartDate)
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -142,7 +142,7 @@ func (h *EventHandler) CreateEvent(c *gin.Context) {
 	//     })
 	//     return
 	// }
-	
+
 	// For now, use a placeholder author ID
 	authorID := uuid.New() // TODO: Replace with authenticated user ID
 
@@ -208,7 +208,7 @@ type UpdateStageRequest struct {
 // UpdateEventStage handles PATCH /api/events/{event_id}/stage
 func (h *EventHandler) UpdateEventStage(c *gin.Context) {
 	eventID := c.Param("event_id")
-	
+
 	h.log.Debug("updating event stage", "event_id", eventID)
 
 	// Validate required parameters
@@ -279,9 +279,9 @@ func (h *EventHandler) UpdateEventStage(c *gin.Context) {
 
 	// Check if transition is valid
 	if !existingEvent.CanTransitionTo(newStage) {
-		h.log.Warn("invalid stage transition", 
-			"event_id", eventID, 
-			"current_stage", existingEvent.Stage.String(), 
+		h.log.Warn("invalid stage transition",
+			"event_id", eventID,
+			"current_stage", existingEvent.Stage.String(),
 			"requested_stage", req.Stage)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":           "Invalid stage transition",
@@ -338,9 +338,9 @@ func (h *EventHandler) UpdateEventStage(c *gin.Context) {
 		return
 	}
 
-	h.log.Info("event stage updated successfully", 
-		"event_id", eventID, 
-		"old_stage", existingEvent.Stage.String(), 
+	h.log.Info("event stage updated successfully",
+		"event_id", eventID,
+		"old_stage", existingEvent.Stage.String(),
 		"new_stage", updatedEvent.Stage.String())
 
 	c.JSON(http.StatusOK, gin.H{
@@ -371,7 +371,7 @@ type RegisterParticipantRequest struct {
 // RegisterParticipant handles POST /api/events/{event_id}/register
 func (h *EventHandler) RegisterParticipant(c *gin.Context) {
 	eventID := c.Param("event_id")
-	
+
 	h.log.Debug("registering participant", "event_id", eventID)
 
 	// Validate required parameters
@@ -419,8 +419,8 @@ func (h *EventHandler) RegisterParticipant(c *gin.Context) {
 
 	// Only allow registration during registration stage
 	if eventObj.Stage != event.StageRegistration {
-		h.log.Warn("registration attempt outside registration stage", 
-			"event_id", eventID, 
+		h.log.Warn("registration attempt outside registration stage",
+			"event_id", eventID,
 			"current_stage", eventObj.Stage.String())
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":         "Participant registration is only allowed during registration stage",
@@ -446,7 +446,7 @@ func (h *EventHandler) RegisterParticipant(c *gin.Context) {
 	if err != nil {
 		// User doesn't exist, create a new one
 		h.log.Debug("creating new user", "email", req.ParticipantEmail, "name", req.ParticipantName)
-		
+
 		newUser := &participant.User{
 			ID:    uuid.New(),
 			Name:  req.ParticipantName,
@@ -473,8 +473,8 @@ func (h *EventHandler) RegisterParticipant(c *gin.Context) {
 	if err == nil && len(participantEvents) > 0 {
 		for _, evt := range participantEvents {
 			if evt.ID == eventUUID {
-				h.log.Warn("duplicate registration attempt", 
-					"event_id", eventID, 
+				h.log.Warn("duplicate registration attempt",
+					"event_id", eventID,
 					"user_id", existingUser.ID.String())
 				c.JSON(http.StatusConflict, gin.H{
 					"error": "Participant is already registered for this event",
@@ -489,14 +489,14 @@ func (h *EventHandler) RegisterParticipant(c *gin.Context) {
 	currentParticipants, err := h.userRepo.GetEventParticipants(eventID)
 	maxParticipants := 100 // This could come from configuration or event settings
 	if err == nil && len(currentParticipants) >= maxParticipants {
-		h.log.Warn("maximum participants reached", 
-			"event_id", eventID, 
+		h.log.Warn("maximum participants reached",
+			"event_id", eventID,
 			"current_count", len(currentParticipants),
 			"max_participants", maxParticipants)
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Maximum number of participants reached for this event",
-			"code":  "MAX_PARTICIPANTS_REACHED",
-			"current_count": len(currentParticipants),
+			"error":            "Maximum number of participants reached for this event",
+			"code":             "MAX_PARTICIPANTS_REACHED",
+			"current_count":    len(currentParticipants),
 			"max_participants": maxParticipants,
 		})
 		return
@@ -504,9 +504,9 @@ func (h *EventHandler) RegisterParticipant(c *gin.Context) {
 
 	// Add participant to event
 	if err := h.eventRepo.AddParticipant(eventID, existingUser.ID.String()); err != nil {
-		h.log.Error("failed to register participant", 
-			"event_id", eventID, 
-			"user_id", existingUser.ID.String(), 
+		h.log.Error("failed to register participant",
+			"event_id", eventID,
+			"user_id", existingUser.ID.String(),
 			"error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to register participant",
@@ -515,19 +515,19 @@ func (h *EventHandler) RegisterParticipant(c *gin.Context) {
 		return
 	}
 
-	h.log.Info("participant registered successfully", 
-		"event_id", eventID, 
+	h.log.Info("participant registered successfully",
+		"event_id", eventID,
 		"user_id", existingUser.ID.String(),
 		"email", existingUser.Email)
 
 	c.JSON(http.StatusCreated, gin.H{
 		"data": gin.H{
-			"participant_id":   existingUser.ID.String(),
-			"participant_name": existingUser.Name,
+			"participant_id":    existingUser.ID.String(),
+			"participant_name":  existingUser.Name,
 			"participant_email": existingUser.Email,
-			"event_id":         eventID,
-			"event_name":       eventObj.Name,
-			"registered_at":    time.Now(),
+			"event_id":          eventID,
+			"event_name":        eventObj.Name,
+			"registered_at":     time.Now(),
 		},
 		"message": "Participant registered successfully",
 		"code":    "PARTICIPANT_REGISTERED",
@@ -537,7 +537,7 @@ func (h *EventHandler) RegisterParticipant(c *gin.Context) {
 // GetEventParticipants handles GET /api/events/{event_id}/participants
 func (h *EventHandler) GetEventParticipants(c *gin.Context) {
 	eventID := c.Param("event_id")
-	
+
 	h.log.Debug("retrieving event participants", "event_id", eventID)
 
 	// Validate required parameters
@@ -627,13 +627,13 @@ func (h *EventHandler) GetAllEvents(c *gin.Context) {
 	// Add pagination support
 	page := 1
 	limit := 10
-	
+
 	if pageStr := c.Query("page"); pageStr != "" {
 		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
 			page = p
 		}
 	}
-	
+
 	if limitStr := c.Query("limit"); limitStr != "" {
 		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 100 {
 			limit = l
@@ -642,7 +642,7 @@ func (h *EventHandler) GetAllEvents(c *gin.Context) {
 
 	// Add filtering support
 	stage := c.Query("stage")
-	
+
 	events, err := h.eventRepo.GetAll()
 	if err != nil {
 		h.log.Error("failed to retrieve events", "error", err)
@@ -664,8 +664,8 @@ func (h *EventHandler) GetAllEvents(c *gin.Context) {
 			}
 		} else {
 			c.JSON(http.StatusBadRequest, gin.H{
-				"error": "Invalid stage filter",
-				"code":  "INVALID_STAGE_FILTER",
+				"error":        "Invalid stage filter",
+				"code":         "INVALID_STAGE_FILTER",
 				"valid_stages": []string{"creation", "registration", "attachment_upload", "voting", "results"},
 			})
 			return
@@ -678,7 +678,7 @@ func (h *EventHandler) GetAllEvents(c *gin.Context) {
 	total := len(filteredEvents)
 	start := (page - 1) * limit
 	end := start + limit
-	
+
 	if start >= total {
 		filteredEvents = []*event.Event{}
 	} else {
@@ -723,7 +723,7 @@ func (h *EventHandler) GetAllEvents(c *gin.Context) {
 // GetEvent handles GET /api/events/{event_id}
 func (h *EventHandler) GetEvent(c *gin.Context) {
 	eventID := c.Param("event_id")
-	
+
 	h.log.Debug("retrieving event", "event_id", eventID)
 
 	// Validate required parameters
@@ -783,7 +783,7 @@ func (h *EventHandler) GetEvent(c *gin.Context) {
 
 		response["statistics"] = gin.H{
 			"participants_count": participantCount,
-			"duration_days":     int(eventObj.EndDate.Sub(eventObj.StartDate).Hours() / 24),
+			"duration_days":      int(eventObj.EndDate.Sub(eventObj.StartDate).Hours() / 24),
 		}
 	}
 
@@ -794,7 +794,7 @@ func (h *EventHandler) GetEvent(c *gin.Context) {
 // UpdateEvent handles PUT /api/events/{event_id}
 func (h *EventHandler) UpdateEvent(c *gin.Context) {
 	eventID := c.Param("event_id")
-	
+
 	h.log.Debug("updating event", "event_id", eventID)
 
 	// Validate required parameters
@@ -886,7 +886,7 @@ func (h *EventHandler) UpdateEvent(c *gin.Context) {
 	// Validate business rules
 	now := time.Now()
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-	
+
 	if startDate.Before(today) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Start date cannot be in the past",
@@ -913,8 +913,8 @@ func (h *EventHandler) UpdateEvent(c *gin.Context) {
 	// For now, return an error indicating this feature is not implemented
 	h.log.Warn("event update feature not implemented", "event_id", eventID)
 	c.JSON(http.StatusNotImplemented, gin.H{
-		"error": "Event update feature is not yet implemented",
-		"code":  "NOT_IMPLEMENTED",
+		"error":   "Event update feature is not yet implemented",
+		"code":    "NOT_IMPLEMENTED",
 		"details": "EventRepository.Update method needs to be added",
 	})
 }
@@ -922,7 +922,7 @@ func (h *EventHandler) UpdateEvent(c *gin.Context) {
 // DeleteEvent handles DELETE /api/events/{event_id}
 func (h *EventHandler) DeleteEvent(c *gin.Context) {
 	eventID := c.Param("event_id")
-	
+
 	h.log.Debug("deleting event", "event_id", eventID)
 
 	// Validate required parameters
@@ -992,8 +992,8 @@ func (h *EventHandler) DeleteEvent(c *gin.Context) {
 	// For now, return an error indicating this feature is not implemented
 	h.log.Warn("event delete feature not implemented", "event_id", eventID)
 	c.JSON(http.StatusNotImplemented, gin.H{
-		"error": "Event delete feature is not yet implemented",
-		"code":  "NOT_IMPLEMENTED",
+		"error":   "Event delete feature is not yet implemented",
+		"code":    "NOT_IMPLEMENTED",
 		"details": "EventRepository.Delete method needs to be added",
 	})
 }
@@ -1002,7 +1002,7 @@ func (h *EventHandler) DeleteEvent(c *gin.Context) {
 func (h *EventHandler) RemoveParticipant(c *gin.Context) {
 	eventID := c.Param("event_id")
 	participantID := c.Param("participant_id")
-	
+
 	h.log.Debug("removing participant", "event_id", eventID, "participant_id", participantID)
 
 	// Validate required parameters
