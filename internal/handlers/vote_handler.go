@@ -72,7 +72,7 @@ func (h *VoteHandler) errorResponse(c *gin.Context, statusCode int, message stri
 		"code":    fmt.Sprintf("VOTE_%d", statusCode),
 		"success": false,
 	}
-	
+
 	if err != nil {
 		h.log.Error(message, "error", err, "details", details)
 		if h.config.Server.GinMode == "debug" {
@@ -81,11 +81,11 @@ func (h *VoteHandler) errorResponse(c *gin.Context, statusCode int, message stri
 	} else {
 		h.log.Warn(message, "details", details)
 	}
-	
+
 	for k, v := range details {
 		response[k] = v
 	}
-	
+
 	c.JSON(statusCode, response)
 }
 
@@ -96,7 +96,7 @@ func (h *VoteHandler) successResponse(c *gin.Context, statusCode int, data inter
 		"message": message,
 		"data":    data,
 	}
-	
+
 	h.log.Info(message, "response", data)
 	c.JSON(statusCode, response)
 }
@@ -125,7 +125,7 @@ func (h *VoteHandler) validateEventForResults(eventObj *event.Event) error {
 
 func (h *VoteHandler) checkParticipantRegistration(eventID, participantID string) (bool, error) {
 	h.log.Debug("Checking participant registration", "event_id", eventID, "participant_id", participantID)
-	
+
 	participantEvents, err := h.eventRepo.GetByParticipant(participantID)
 	if err != nil {
 		return false, fmt.Errorf("failed to check participant registration: %w", err)
@@ -137,7 +137,7 @@ func (h *VoteHandler) checkParticipantRegistration(eventID, participantID string
 			return true, nil
 		}
 	}
-	
+
 	h.log.Warn("Participant not registered for event", "event_id", eventID, "participant_id", participantID)
 	return false, nil
 }
@@ -146,7 +146,7 @@ func (h *VoteHandler) checkParticipantRegistration(eventID, participantID string
 func (h *VoteHandler) SubmitVote(c *gin.Context) {
 	eventID := c.Param("event_id")
 	h.log.Info("Processing vote submission", "event_id", eventID)
-	
+
 	if eventID == "" {
 		h.errorResponse(c, http.StatusBadRequest, "Event ID is required", nil, nil)
 		return
@@ -175,9 +175,9 @@ func (h *VoteHandler) SubmitVote(c *gin.Context) {
 		return
 	}
 
-	h.log.Debug("Vote submission request validated", 
-		"event_id", eventID, 
-		"voter_id", req.VoterID, 
+	h.log.Debug("Vote submission request validated",
+		"event_id", eventID,
+		"voter_id", req.VoterID,
 		"attachment_id", req.VotedAttachmentID)
 
 	// Check if event exists
@@ -269,7 +269,7 @@ func (h *VoteHandler) SubmitVote(c *gin.Context) {
 		return
 	}
 
-	h.log.Info("Vote submitted successfully", 
+	h.log.Info("Vote submitted successfully",
 		"vote_id", newVote.ID.String(),
 		"voter_id", req.VoterID,
 		"event_id", eventID,
@@ -290,7 +290,7 @@ func (h *VoteHandler) SubmitVote(c *gin.Context) {
 func (h *VoteHandler) GetEventResults(c *gin.Context) {
 	eventID := c.Param("event_id")
 	h.log.Info("Processing results request", "event_id", eventID)
-	
+
 	if eventID == "" {
 		h.errorResponse(c, http.StatusBadRequest, "Event ID is required", nil, nil)
 		return
@@ -384,8 +384,8 @@ func (h *VoteHandler) GetEventResults(c *gin.Context) {
 		}
 	}
 
-	h.log.Info("Results compiled successfully", 
-		"event_id", eventID, 
+	h.log.Info("Results compiled successfully",
+		"event_id", eventID,
 		"total_attachments", len(detailedResults),
 		"total_votes", totalVotes)
 
@@ -403,7 +403,7 @@ func (h *VoteHandler) GetEventResults(c *gin.Context) {
 func (h *VoteHandler) GetVotesByEvent(c *gin.Context) {
 	eventID := c.Param("event_id")
 	h.log.Info("Processing votes by event request", "event_id", eventID)
-	
+
 	if eventID == "" {
 		h.errorResponse(c, http.StatusBadRequest, "Event ID is required", nil, nil)
 		return
@@ -441,7 +441,7 @@ func (h *VoteHandler) GetVotesByEvent(c *gin.Context) {
 func (h *VoteHandler) GetVotesByVoter(c *gin.Context) {
 	voterID := c.Param("voter_id")
 	h.log.Info("Processing votes by voter request", "voter_id", voterID)
-	
+
 	if voterID == "" {
 		h.errorResponse(c, http.StatusBadRequest, "Voter ID is required", nil, nil)
 		return
@@ -480,7 +480,7 @@ func (h *VoteHandler) GetVotingStatus(c *gin.Context) {
 	eventID := c.Param("event_id")
 	voterID := c.Param("voter_id")
 	h.log.Info("Processing voting status request", "event_id", eventID, "voter_id", voterID)
-	
+
 	if eventID == "" || voterID == "" {
 		h.errorResponse(c, http.StatusBadRequest, "Event ID and voter ID are required", nil, nil)
 		return
@@ -538,12 +538,12 @@ func (h *VoteHandler) GetVotingStatus(c *gin.Context) {
 	}
 
 	status := map[string]interface{}{
-		"event_id":     eventID,
-		"voter_id":     voterID,
-		"has_voted":    hasVoted,
-		"event_stage":  eventObj.Stage.String(),
-		"can_vote":     eventObj.Stage == event.StageVoting && !hasVoted,
-		"event_name":   eventObj.Name,
+		"event_id":    eventID,
+		"voter_id":    voterID,
+		"has_voted":   hasVoted,
+		"event_stage": eventObj.Stage.String(),
+		"can_vote":    eventObj.Stage == event.StageVoting && !hasVoted,
+		"event_name":  eventObj.Name,
 	}
 
 	h.log.Info("Voting status retrieved", "event_id", eventID, "voter_id", voterID, "has_voted", hasVoted)
