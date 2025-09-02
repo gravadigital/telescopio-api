@@ -58,7 +58,7 @@ func NewDistributedVoteHandler(
 // CreateVotingConfiguration handles POST /api/events/{event_id}/voting-config
 func (h *DistributedVoteHandler) CreateVotingConfiguration(c *gin.Context) {
 	eventID := c.Param("event_id")
-	
+
 	h.log.Debug("creating voting configuration", "event_id", eventID)
 
 	// Validate required parameters
@@ -159,7 +159,7 @@ func (h *DistributedVoteHandler) CreateVotingConfiguration(c *gin.Context) {
 			"error": "Voting configuration already exists for this event",
 			"code":  "CONFIG_EXISTS",
 			"existing_config": gin.H{
-				"id": existingConfig.ID.String(),
+				"id":         existingConfig.ID.String(),
 				"created_at": existingConfig.CreatedAt,
 			},
 		})
@@ -180,8 +180,8 @@ func (h *DistributedVoteHandler) CreateVotingConfiguration(c *gin.Context) {
 	if len(participants) < 2 {
 		h.log.Warn("insufficient participants for voting", "event_id", eventID, "participant_count", len(participants))
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "At least 2 participants are required for distributed voting",
-			"code":  "INSUFFICIENT_PARTICIPANTS",
+			"error":         "At least 2 participants are required for distributed voting",
+			"code":          "INSUFFICIENT_PARTICIPANTS",
 			"current_count": len(participants),
 		})
 		return
@@ -247,15 +247,15 @@ func (h *DistributedVoteHandler) CreateVotingConfiguration(c *gin.Context) {
 	maxPossibleAssignments := req.AttachmentsPerEvaluator * len(participants)
 	minRequiredAssignments := req.MinEvaluationsPerFile * len(attachments)
 	if maxPossibleAssignments < minRequiredAssignments {
-		h.log.Warn("mathematical constraint violation", 
-			"max_possible", maxPossibleAssignments, 
+		h.log.Warn("mathematical constraint violation",
+			"max_possible", maxPossibleAssignments,
 			"min_required", minRequiredAssignments,
 			"participants", len(participants),
 			"attachments", len(attachments))
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Configuration violates mathematical constraints",
-			"code":  "MATH_CONSTRAINT_VIOLATION",
-			"details": "Not enough evaluation capacity to meet minimum evaluations per file",
+			"error":                    "Configuration violates mathematical constraints",
+			"code":                     "MATH_CONSTRAINT_VIOLATION",
+			"details":                  "Not enough evaluation capacity to meet minimum evaluations per file",
 			"max_possible_evaluations": maxPossibleAssignments,
 			"min_required_evaluations": minRequiredAssignments,
 		})
@@ -273,30 +273,30 @@ func (h *DistributedVoteHandler) CreateVotingConfiguration(c *gin.Context) {
 		return
 	}
 
-	h.log.Info("voting configuration created successfully", 
-		"event_id", eventID, 
-		"config_id", config.ID, 
+	h.log.Info("voting configuration created successfully",
+		"event_id", eventID,
+		"config_id", config.ID,
 		"participants", len(participants),
 		"attachments", len(attachments))
 
 	c.JSON(http.StatusCreated, gin.H{
 		"data": gin.H{
-			"id":                      config.ID.String(),
-			"event_id":                eventID,
+			"id":                        config.ID.String(),
+			"event_id":                  eventID,
 			"attachments_per_evaluator": config.AttachmentsPerEvaluator,
-			"quality_good_threshold":   config.QualityGoodThreshold,
-			"quality_bad_threshold":    config.QualityBadThreshold,
-			"adjustment_magnitude":     config.AdjustmentMagnitude,
-			"min_evaluations_per_file": config.MinEvaluationsPerFile,
-			"created_at":              config.CreatedAt,
+			"quality_good_threshold":    config.QualityGoodThreshold,
+			"quality_bad_threshold":     config.QualityBadThreshold,
+			"adjustment_magnitude":      config.AdjustmentMagnitude,
+			"min_evaluations_per_file":  config.MinEvaluationsPerFile,
+			"created_at":                config.CreatedAt,
 		},
 		"message": "Voting configuration created successfully",
 		"code":    "CONFIG_CREATED",
 		"statistics": gin.H{
 			"participants_count": len(participants),
 			"attachments_count":  len(attachments),
-			"max_evaluations":   maxPossibleAssignments,
-			"min_evaluations":   minRequiredAssignments,
+			"max_evaluations":    maxPossibleAssignments,
+			"min_evaluations":    minRequiredAssignments,
 		},
 	})
 }
@@ -304,7 +304,7 @@ func (h *DistributedVoteHandler) CreateVotingConfiguration(c *gin.Context) {
 // GenerateAssignments handles POST /api/events/{event_id}/generate-assignments
 func (h *DistributedVoteHandler) GenerateAssignments(c *gin.Context) {
 	eventID := c.Param("event_id")
-	
+
 	h.log.Debug("generating assignments", "event_id", eventID)
 
 	// Validate required parameters
@@ -365,8 +365,8 @@ func (h *DistributedVoteHandler) GenerateAssignments(c *gin.Context) {
 	if err == nil && len(existingAssignments) > 0 {
 		h.log.Warn("assignments already exist", "event_id", eventID, "existing_count", len(existingAssignments))
 		c.JSON(http.StatusConflict, gin.H{
-			"error": "Assignments already exist for this event",
-			"code":  "ASSIGNMENTS_EXIST",
+			"error":                "Assignments already exist for this event",
+			"code":                 "ASSIGNMENTS_EXIST",
 			"existing_assignments": len(existingAssignments),
 		})
 		return
@@ -386,8 +386,8 @@ func (h *DistributedVoteHandler) GenerateAssignments(c *gin.Context) {
 	if len(participantUsers) < 2 {
 		h.log.Warn("insufficient participants for assignment generation", "event_id", eventID, "participant_count", len(participantUsers))
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "At least 2 participants are required for distributed voting",
-			"code":  "INSUFFICIENT_PARTICIPANTS",
+			"error":         "At least 2 participants are required for distributed voting",
+			"code":          "INSUFFICIENT_PARTICIPANTS",
 			"current_count": len(participantUsers),
 		})
 		return
@@ -446,9 +446,9 @@ func (h *DistributedVoteHandler) GenerateAssignments(c *gin.Context) {
 	}
 
 	// Generate assignments
-	h.log.Info("generating assignments", 
-		"event_id", eventID, 
-		"participants", len(participants), 
+	h.log.Info("generating assignments",
+		"event_id", eventID,
+		"participants", len(participants),
 		"attachments", len(attachmentIDs))
 
 	assignments, err := h.votingService.GenerateAssignments(eventUUID, participants, attachmentIDs, config)
@@ -466,9 +466,9 @@ func (h *DistributedVoteHandler) GenerateAssignments(c *gin.Context) {
 	savedCount := 0
 	for _, assignment := range assignments {
 		if err := h.voteRepo.CreateAssignment(assignment); err != nil {
-			h.log.Error("failed to save assignment", 
-				"event_id", eventID, 
-				"assignment_id", assignment.ID, 
+			h.log.Error("failed to save assignment",
+				"event_id", eventID,
+				"assignment_id", assignment.ID,
 				"participant_id", assignment.ParticipantID,
 				"error", err)
 			c.JSON(http.StatusInternalServerError, gin.H{
@@ -481,8 +481,8 @@ func (h *DistributedVoteHandler) GenerateAssignments(c *gin.Context) {
 		savedCount++
 	}
 
-	h.log.Info("assignments generated and saved successfully", 
-		"event_id", eventID, 
+	h.log.Info("assignments generated and saved successfully",
+		"event_id", eventID,
 		"assignments_count", savedCount,
 		"participants", len(participants),
 		"attachments", len(attachmentIDs))
@@ -495,18 +495,18 @@ func (h *DistributedVoteHandler) GenerateAssignments(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, gin.H{
 		"data": gin.H{
-			"assignments_count":      len(assignments),
-			"total_participants":     len(participants),
-			"total_attachments":      len(attachmentIDs),
-			"total_evaluations":      totalEvaluations,
+			"assignments_count":         len(assignments),
+			"total_participants":        len(participants),
+			"total_attachments":         len(attachmentIDs),
+			"total_evaluations":         totalEvaluations,
 			"attachments_per_evaluator": config.AttachmentsPerEvaluator,
 		},
 		"message": "Assignments generated successfully",
 		"code":    "ASSIGNMENTS_GENERATED",
 		"config": gin.H{
-			"id": config.ID.String(),
+			"id":                        config.ID.String(),
 			"attachments_per_evaluator": config.AttachmentsPerEvaluator,
-			"min_evaluations_per_file": config.MinEvaluationsPerFile,
+			"min_evaluations_per_file":  config.MinEvaluationsPerFile,
 		},
 	})
 }
@@ -875,7 +875,7 @@ func (h *DistributedVoteHandler) GetVotingStatistics(c *gin.Context) {
 // GetVotingConfiguration handles GET /api/events/{event_id}/voting-config
 func (h *DistributedVoteHandler) GetVotingConfiguration(c *gin.Context) {
 	eventID := c.Param("event_id")
-	
+
 	h.log.Debug("retrieving voting configuration", "event_id", eventID)
 
 	if eventID == "" {
@@ -899,14 +899,14 @@ func (h *DistributedVoteHandler) GetVotingConfiguration(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"data": gin.H{
-			"id":                      config.ID.String(),
-			"event_id":               config.EventID.String(),
+			"id":                        config.ID.String(),
+			"event_id":                  config.EventID.String(),
 			"attachments_per_evaluator": config.AttachmentsPerEvaluator,
-			"quality_good_threshold":   config.QualityGoodThreshold,
-			"quality_bad_threshold":    config.QualityBadThreshold,
-			"adjustment_magnitude":     config.AdjustmentMagnitude,
-			"min_evaluations_per_file": config.MinEvaluationsPerFile,
-			"created_at":              config.CreatedAt,
+			"quality_good_threshold":    config.QualityGoodThreshold,
+			"quality_bad_threshold":     config.QualityBadThreshold,
+			"adjustment_magnitude":      config.AdjustmentMagnitude,
+			"min_evaluations_per_file":  config.MinEvaluationsPerFile,
+			"created_at":                config.CreatedAt,
 		},
 	})
 }
@@ -914,7 +914,7 @@ func (h *DistributedVoteHandler) GetVotingConfiguration(c *gin.Context) {
 // UpdateVotingConfiguration handles PUT /api/events/{event_id}/voting-config
 func (h *DistributedVoteHandler) UpdateVotingConfiguration(c *gin.Context) {
 	eventID := c.Param("event_id")
-	
+
 	h.log.Debug("updating voting configuration", "event_id", eventID)
 
 	if eventID == "" {
@@ -982,7 +982,7 @@ func (h *DistributedVoteHandler) UpdateVotingConfiguration(c *gin.Context) {
 	// Re-validate configuration
 	participants, _ := h.userRepo.GetEventParticipants(eventID)
 	attachments, _ := h.attachmentRepo.GetByEventID(eventID)
-	
+
 	if err := h.votingService.ValidateVotingConfiguration(config, len(attachments), len(participants)); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid voting configuration",
@@ -1006,14 +1006,14 @@ func (h *DistributedVoteHandler) UpdateVotingConfiguration(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"data": gin.H{
-			"id":                      config.ID.String(),
-			"event_id":               config.EventID.String(),
+			"id":                        config.ID.String(),
+			"event_id":                  config.EventID.String(),
 			"attachments_per_evaluator": config.AttachmentsPerEvaluator,
-			"quality_good_threshold":   config.QualityGoodThreshold,
-			"quality_bad_threshold":    config.QualityBadThreshold,
-			"adjustment_magnitude":     config.AdjustmentMagnitude,
-			"min_evaluations_per_file": config.MinEvaluationsPerFile,
-			"updated_at":              time.Now(),
+			"quality_good_threshold":    config.QualityGoodThreshold,
+			"quality_bad_threshold":     config.QualityBadThreshold,
+			"adjustment_magnitude":      config.AdjustmentMagnitude,
+			"min_evaluations_per_file":  config.MinEvaluationsPerFile,
+			"updated_at":                time.Now(),
 		},
 		"message": "Voting configuration updated successfully",
 		"code":    "CONFIG_UPDATED",
@@ -1023,7 +1023,7 @@ func (h *DistributedVoteHandler) UpdateVotingConfiguration(c *gin.Context) {
 // DeleteVotingConfiguration handles DELETE /api/events/{event_id}/voting-config
 func (h *DistributedVoteHandler) DeleteVotingConfiguration(c *gin.Context) {
 	eventID := c.Param("event_id")
-	
+
 	h.log.Debug("deleting voting configuration", "event_id", eventID)
 
 	if eventID == "" {
@@ -1075,7 +1075,7 @@ func (h *DistributedVoteHandler) DeleteVotingConfiguration(c *gin.Context) {
 // PreviewVotingConfiguration handles POST /api/events/{event_id}/voting-config/preview
 func (h *DistributedVoteHandler) PreviewVotingConfiguration(c *gin.Context) {
 	eventID := c.Param("event_id")
-	
+
 	h.log.Debug("previewing voting configuration", "event_id", eventID)
 
 	if eventID == "" {
@@ -1143,31 +1143,31 @@ func (h *DistributedVoteHandler) PreviewVotingConfiguration(c *gin.Context) {
 
 	// Validate and calculate metrics
 	validationErr := h.votingService.ValidateVotingConfiguration(tempConfig, len(attachments), len(participants))
-	
+
 	maxPossibleAssignments := req.AttachmentsPerEvaluator * len(participants)
 	minRequiredAssignments := req.MinEvaluationsPerFile * len(attachments)
-	
+
 	avgEvaluationsPerFile := float64(maxPossibleAssignments) / float64(len(attachments))
 	workloadBalance := float64(req.AttachmentsPerEvaluator)
 
 	response := gin.H{
 		"configuration": gin.H{
 			"attachments_per_evaluator": req.AttachmentsPerEvaluator,
-			"quality_good_threshold":   tempConfig.QualityGoodThreshold,
-			"quality_bad_threshold":    tempConfig.QualityBadThreshold,
-			"adjustment_magnitude":     req.AdjustmentMagnitude,
-			"min_evaluations_per_file": req.MinEvaluationsPerFile,
+			"quality_good_threshold":    tempConfig.QualityGoodThreshold,
+			"quality_bad_threshold":     tempConfig.QualityBadThreshold,
+			"adjustment_magnitude":      req.AdjustmentMagnitude,
+			"min_evaluations_per_file":  req.MinEvaluationsPerFile,
 		},
 		"current_data": gin.H{
 			"participants_count": len(participants),
 			"attachments_count":  len(attachments),
 		},
 		"calculated_metrics": gin.H{
-			"max_possible_evaluations":    maxPossibleAssignments,
-			"min_required_evaluations":    minRequiredAssignments,
-			"avg_evaluations_per_file":    avgEvaluationsPerFile,
-			"workload_per_participant":    workloadBalance,
-			"evaluation_coverage_ratio":   avgEvaluationsPerFile / float64(req.MinEvaluationsPerFile),
+			"max_possible_evaluations":  maxPossibleAssignments,
+			"min_required_evaluations":  minRequiredAssignments,
+			"avg_evaluations_per_file":  avgEvaluationsPerFile,
+			"workload_per_participant":  workloadBalance,
+			"evaluation_coverage_ratio": avgEvaluationsPerFile / float64(req.MinEvaluationsPerFile),
 		},
 		"validation": gin.H{
 			"is_valid": validationErr == nil,
