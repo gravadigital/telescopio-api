@@ -37,9 +37,9 @@ func DefaultConnectionConfig() *ConnectionConfig {
 
 // DatabaseMetrics holds database connection metrics
 type DatabaseMetrics struct {
-	OpenConnections int
+	OpenConnections  int
 	InUseConnections int
-	IdleConnections int
+	IdleConnections  int
 }
 
 // Connect establishes a connection to the PostgreSQL database with enhanced configuration
@@ -50,7 +50,7 @@ func Connect(cfg *config.Config) (*gorm.DB, error) {
 // ConnectWithConfig establishes a connection with custom configuration
 func ConnectWithConfig(cfg *config.Config, connCfg *ConnectionConfig) (*gorm.DB, error) {
 	log := logger.Database()
-	
+
 	// Validate configuration
 	if err := validateDatabaseConfig(cfg); err != nil {
 		log.Error("Database configuration validation failed", "error", err)
@@ -87,12 +87,12 @@ func ConnectWithConfig(cfg *config.Config, connCfg *ConnectionConfig) (*gorm.DB,
 
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		log.Debug("Database connection attempt", "attempt", attempt, "max_retries", maxRetries)
-		
+
 		db, err = gorm.Open(postgres.Open(dsn), gormConfig)
 		if err == nil {
 			break
 		}
-		
+
 		log.Warn("Database connection failed", "attempt", attempt, "error", err)
 		if attempt < maxRetries {
 			log.Debug("Retrying database connection", "delay", retryDelay)
@@ -123,13 +123,13 @@ func ConnectWithConfig(cfg *config.Config, connCfg *ConnectionConfig) (*gorm.DB,
 
 	// Log connection success with metrics
 	metrics := GetDatabaseMetrics(db)
-	log.Info("Successfully connected to PostgreSQL database", 
+	log.Info("Successfully connected to PostgreSQL database",
 		"host", cfg.DB.Host,
 		"database", cfg.DB.Name,
 		"max_open_conns", connCfg.MaxOpenConns,
 		"max_idle_conns", connCfg.MaxIdleConns,
 		"open_connections", metrics.OpenConnections)
-	
+
 	return db, nil
 }
 
@@ -138,28 +138,28 @@ func validateDatabaseConfig(cfg *config.Config) error {
 	if cfg == nil {
 		return fmt.Errorf("config cannot be nil")
 	}
-	
+
 	if cfg.DB.Host == "" {
 		return fmt.Errorf("database host cannot be empty")
 	}
-	
+
 	if cfg.DB.Port == "" {
 		return fmt.Errorf("database port cannot be empty")
 	}
-	
+
 	if cfg.DB.Name == "" {
 		return fmt.Errorf("database name cannot be empty")
 	}
-	
+
 	if cfg.DB.User == "" {
 		return fmt.Errorf("database user cannot be empty")
 	}
-	
+
 	// Password can be empty for local development
 	// if cfg.DB.Password == "" {
 	//     return fmt.Errorf("database password cannot be empty")
 	// }
-	
+
 	return nil
 }
 
@@ -172,16 +172,16 @@ func configureConnectionPool(db *gorm.DB, cfg *ConnectionConfig) error {
 
 	// Set maximum number of open connections to the database
 	sqlDB.SetMaxOpenConns(cfg.MaxOpenConns)
-	
+
 	// Set maximum number of idle connections in the pool
 	sqlDB.SetMaxIdleConns(cfg.MaxIdleConns)
-	
+
 	// Set maximum lifetime of a connection
 	sqlDB.SetConnMaxLifetime(cfg.ConnMaxLifetime)
-	
+
 	// Set maximum idle time of a connection
 	sqlDB.SetConnMaxIdleTime(cfg.ConnMaxIdleTime)
-	
+
 	return nil
 }
 
@@ -194,11 +194,11 @@ func testConnection(db *gorm.DB) error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	
+
 	if err := sqlDB.PingContext(ctx); err != nil {
 		return fmt.Errorf("failed to ping database: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -239,11 +239,11 @@ func HealthCheckWithTimeout(db *gorm.DB, timeout time.Duration) error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	
+
 	if err := sqlDB.PingContext(ctx); err != nil {
 		return fmt.Errorf("database health check failed: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -264,7 +264,7 @@ func AutoMigrate(db *gorm.DB) error {
 	}
 
 	startTime := time.Now()
-	
+
 	// Run all migrations using the new migration system
 	if err := migrations.RunMigrations(db); err != nil {
 		log.Error("Database migrations failed", "error", err, "duration", time.Since(startTime))
@@ -279,7 +279,7 @@ func AutoMigrate(db *gorm.DB) error {
 // Close closes the database connection with cleanup
 func Close() error {
 	log := logger.Database()
-	
+
 	if DB == nil {
 		log.Warn("Attempted to close nil database connection")
 		return nil
@@ -305,7 +305,7 @@ func Close() error {
 
 	// Clear global DB variable
 	DB = nil
-	
+
 	log.Info("Database connection closed successfully")
 	return nil
 }
@@ -313,11 +313,11 @@ func Close() error {
 // CloseWithTimeout closes the database connection with a timeout
 func CloseWithTimeout(timeout time.Duration) error {
 	done := make(chan error, 1)
-	
+
 	go func() {
 		done <- Close()
 	}()
-	
+
 	select {
 	case err := <-done:
 		return err
@@ -331,7 +331,7 @@ func GetConnectionInfo() map[string]interface{} {
 	if DB == nil {
 		return map[string]interface{}{
 			"connected": false,
-			"error": "no database connection",
+			"error":     "no database connection",
 		}
 	}
 
@@ -340,22 +340,22 @@ func GetConnectionInfo() map[string]interface{} {
 	if err != nil {
 		return map[string]interface{}{
 			"connected": false,
-			"error": err.Error(),
+			"error":     err.Error(),
 		}
 	}
 
 	stats := sqlDB.Stats()
-	
+
 	return map[string]interface{}{
-		"connected": true,
-		"open_connections": metrics.OpenConnections,
-		"in_use_connections": metrics.InUseConnections,
-		"idle_connections": metrics.IdleConnections,
+		"connected":            true,
+		"open_connections":     metrics.OpenConnections,
+		"in_use_connections":   metrics.InUseConnections,
+		"idle_connections":     metrics.IdleConnections,
 		"max_open_connections": stats.MaxOpenConnections,
-		"wait_count": stats.WaitCount,
-		"wait_duration": stats.WaitDuration.String(),
-		"max_idle_closed": stats.MaxIdleClosed,
+		"wait_count":           stats.WaitCount,
+		"wait_duration":        stats.WaitDuration.String(),
+		"max_idle_closed":      stats.MaxIdleClosed,
 		"max_idle_time_closed": stats.MaxIdleTimeClosed,
-		"max_lifetime_closed": stats.MaxLifetimeClosed,
+		"max_lifetime_closed":  stats.MaxLifetimeClosed,
 	}
 }
