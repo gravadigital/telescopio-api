@@ -66,7 +66,7 @@ func (r *PostgresAttachmentRepository) Create(attachment *attachmentDomain.Attac
 			r.log.Error("failed to check event existence", "event_id", attachment.EventID, "error", err)
 			return fmt.Errorf("failed to validate event existence: %w", err)
 		}
-		
+
 		if !eventExists {
 			r.log.Error("event does not exist", "event_id", attachment.EventID, "attachment_id", attachment.ID)
 			return fmt.Errorf("event does not exist")
@@ -83,7 +83,7 @@ func (r *PostgresAttachmentRepository) Create(attachment *attachmentDomain.Attac
 			r.log.Error("failed to check participant existence", "participant_id", attachment.ParticipantID, "error", err)
 			return fmt.Errorf("failed to validate participant existence: %w", err)
 		}
-		
+
 		if !participantExists {
 			r.log.Error("participant does not exist", "participant_id", attachment.ParticipantID, "attachment_id", attachment.ID)
 			return fmt.Errorf("participant does not exist")
@@ -346,11 +346,11 @@ func (r *PostgresAttachmentRepository) GetByEventIDPaginated(eventID string, par
 		TotalPages: totalPages,
 	}
 
-	r.log.Debug("paginated attachments retrieved successfully", 
-		"event_id", eventID, 
-		"page", params.Page, 
-		"page_size", params.PageSize, 
-		"total", total, 
+	r.log.Debug("paginated attachments retrieved successfully",
+		"event_id", eventID,
+		"page", params.Page,
+		"page_size", params.PageSize,
+		"total", total,
 		"returned_count", len(attachments))
 
 	return result, nil
