@@ -109,6 +109,8 @@ func (u *User) Validate() error {
 	if u.Email == "" {
 		return fmt.Errorf("email is required")
 	}
+	// TODO: Add email format validation using regex
+	// Example: regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
 	if !u.Role.IsValid() {
 		return fmt.Errorf("role must be 'admin' or 'participant', got: %s", u.Role)
 	}
@@ -122,4 +124,63 @@ func (u *User) GetID() uuid.UUID {
 
 func (u *User) GetName() string {
 	return u.Name
+}
+
+// TODO: Permission management methods by role
+// These methods should be implemented to handle role-based permissions
+
+// CanCreateEvent checks if user can create events
+// TODO: Implement permission logic based on role
+func (u *User) CanCreateEvent() bool {
+	// TODO: Define which roles can create events
+	return u.IsAdmin() // Placeholder logic
+}
+
+// CanManageParticipants checks if user can manage event participants
+// TODO: Implement permission logic for participant management
+func (u *User) CanManageParticipants() bool {
+	// TODO: Define which roles can manage participants
+	return u.IsAdmin() // Placeholder logic
+}
+
+// CanVote checks if user can participate in voting
+// TODO: Implement voting permission logic
+func (u *User) CanVote() bool {
+	// TODO: Define which roles can vote (probably both admin and participant)
+	return u.IsParticipant() || u.IsAdmin() // Placeholder logic
+}
+
+// CanViewResults checks if user can view voting results
+// TODO: Implement result viewing permission logic
+func (u *User) CanViewResults() bool {
+	// TODO: Define which roles can view results
+	return true // Placeholder: everyone can view results
+}
+
+// CanModifyVotingConfiguration checks if user can modify voting settings
+// TODO: Implement voting configuration permission logic
+func (u *User) CanModifyVotingConfiguration() bool {
+	// TODO: Define which roles can modify voting configuration
+	return u.IsAdmin() // Placeholder logic
+}
+
+// HasPermission checks if user has a specific permission
+// TODO: Implement a comprehensive permission system
+func (u *User) HasPermission(permission string) bool {
+	// TODO: Implement permission checking logic
+	// This could integrate with a more sophisticated RBAC system
+	switch permission {
+	case "create_event":
+		return u.CanCreateEvent()
+	case "manage_participants":
+		return u.CanManageParticipants()
+	case "vote":
+		return u.CanVote()
+	case "view_results":
+		return u.CanViewResults()
+	case "modify_voting_config":
+		return u.CanModifyVotingConfiguration()
+	default:
+		return false // TODO: Define default permission behavior
+	}
 }
