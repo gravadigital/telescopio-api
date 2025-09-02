@@ -3,76 +3,65 @@ package event
 import (
 	"fmt"
 	"slices"
-	"strconv"
 	"time"
 
-	"github.com/gravadigital/telescopio-api/internal/domain/participant"
+	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
+// Event represents a voting event for telescope time allocation
 type Event struct {
-	ID             string             `json:"id" db:"id"`
-	Name           string             `json:"name" db:"name"`
-	AuthorID       string             `json:"author_id" db:"author_id"`
-	Author         *participant.User  `json:"author,omitempty" db:"-"`
-	Description    string             `json:"description" db:"description"`
-	StartDate      time.Time          `json:"start_date" db:"start_date"`
-	EndDate        time.Time          `json:"end_date" db:"end_date"`
-	Stage          Stage              `json:"stage" db:"stage"`
-	ParticipantIDs []string           `json:"participant_ids" db:"participant_ids"`
-	Participants   []participant.User `json:"participants,omitempty" db:"-"`
-	CreatedAt      time.Time          `json:"created_at" db:"created_at"`
+	ID          uuid.UUID `json:"id" gorm:"type:uuid;primaryKey;default:uuid_generate_v4()"`
+	Name        string    `json:"name" gorm:"not null"`
+	Description string    `json:"description" gorm:"not null"`
+	AuthorID    uuid.UUID `json:"author_id" gorm:"type:uuid;not null"`
+	StartDate   time.Time `json:"start_date" gorm:"not null"`
+	EndDate     time.Time `json:"end_date" gorm:"not null"`
+	Stage       Stage     `json:"stage" gorm:"type:event_stage;not null;default:'creation'"`
+	CreatedAt   time.Time `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt   time.Time `json:"updated_at" gorm:"autoUpdateTime"`
 }
 
-func NewEvent(name, description, authorID string, startDate, endDate time.Time) *Event {
+// TableName overrides the table name used by GORM
+func (Event) TableName() string {
+	return "events"
+}
+
+// BeforeCreate sets a UUID before creating the record
+func (e *Event) BeforeCreate(tx *gorm.DB) error {
+	if e.ID == uuid.Nil {
+		e.ID = uuid.New()
+	}
+	return nil
+}
+
+// NewEvent creates a new event with the given parameters
+func NewEvent(name, description string, authorID uuid.UUID, startDate, endDate time.Time) *Event {
 	return &Event{
-		ID:             generateEventID(),
-		Name:           name,
-		Description:    description,
-		AuthorID:       authorID,
-		StartDate:      startDate,
-		EndDate:        endDate,
-		Stage:          StageCreation,
-		ParticipantIDs: make([]string, 0),
-		CreatedAt:      time.Now(),
+		ID:          uuid.New(),
+		Name:        name,
+		Description: description,
+		AuthorID:    authorID,
+		StartDate:   startDate,
+		EndDate:     endDate,
+		Stage:       StageCreation,
+		CreatedAt:   time.Now(),
 	}
 }
 
-// AddParticipant agrega un participante al evento
-func (e *Event) AddParticipant(userID string) {
-	if slices.Contains(e.ParticipantIDs, userID) {
-		return
-	}
-	e.ParticipantIDs = append(e.ParticipantIDs, userID)
-}
-
-// RemoveParticipant remueve un participante del evento
-func (e *Event) RemoveParticipant(userID string) {
-	for i, participantID := range e.ParticipantIDs {
-		if participantID == userID {
-			e.ParticipantIDs = append(e.ParticipantIDs[:i], e.ParticipantIDs[i+1:]...)
-			return
-		}
-	}
-}
-
-// IsParticipant verifica si un usuario es participante
-func (e *Event) IsParticipant(userID string) bool {
-	return slices.Contains(e.ParticipantIDs, userID)
-}
-
-// IsAuthor verifica si un usuario es el autor del evento
-func (e *Event) IsAuthor(userID string) bool {
+// IsAuthor checks if the given user ID is the author of this event
+func (e *Event) IsAuthor(userID uuid.UUID) bool {
 	return e.AuthorID == userID
 }
 
-// CanTransitionTo verifica si el evento puede transicionar a un nuevo stage
+// CanTransitionTo checks if the event can transition to a new stage
 func (e *Event) CanTransitionTo(newStage Stage) bool {
 	transitions := map[Stage][]Stage{
 		StageCreation:     {StageRegistration},
 		StageRegistration: {StageSubmission},
 		StageSubmission:   {StageVoting},
 		StageVoting:       {StageResult},
-		StageResult:       {}, // No hay transiciones desde Result
+		StageResult:       {}, // NOTE: No transitions from Result
 	}
 
 	allowedTransitions, exists := transitions[e.Stage]
@@ -83,37 +72,42 @@ func (e *Event) CanTransitionTo(newStage Stage) bool {
 	return slices.Contains(allowedTransitions, newStage)
 }
 
-// UpdateStage actualiza el stage del evento si la transición es válida
-func (e *Event) UpdateStage(newStage Stage) bool {
-	if e.CanTransitionTo(newStage) {
-		e.Stage = newStage
-		return true
+// UpdateStage updates the stage if the transition is valid
+func (e *Event) UpdateStage(newStage Stage) error {
+	if !e.CanTransitionTo(newStage) {
+		return fmt.Errorf("cannot transition from %s to %s", e.Stage, newStage)
 	}
-	return false
+	e.Stage = newStage
+	return nil
 }
 
-// TODO: Implementar esta función
-func generateEventID() string {
-	// Por ahora retorna un placeholder
-	// Podrías usar UUID, nanoid, etc.
-	return "event_" + strconv.FormatInt(time.Now().Unix(), 10)
-}
-
-func (e Event) New() Event {
-	return Event{
-		ID:             e.ID,
-		Name:           e.Name,
-		AuthorID:       e.AuthorID,
-		Description:    e.Description,
-		StartDate:      e.StartDate,
-		EndDate:        e.EndDate,
-		Stage:          e.Stage,
-		ParticipantIDs: make([]string, len(e.ParticipantIDs)),
-		Participants:   make([]participant.User, len(e.Participants)),
-		CreatedAt:      e.CreatedAt,
+// Validate checks if the event data is valid
+func (e *Event) Validate() error {
+	if e.Name == "" {
+		return fmt.Errorf("name is required")
 	}
+	if e.Description == "" {
+		return fmt.Errorf("description is required")
+	}
+	if e.AuthorID == uuid.Nil {
+		return fmt.Errorf("author_id is required")
+	}
+	if e.EndDate.Before(e.StartDate) {
+		return fmt.Errorf("end_date must be after start_date")
+	}
+	return nil
 }
 
+// Implement common.EventInterface for consistency with other domains
+func (e *Event) GetID() uuid.UUID {
+	return e.ID
+}
+
+func (e *Event) GetName() string {
+	return e.Name
+}
+
+// Stage represents the current stage of an event
 type Stage byte
 
 const (
@@ -122,7 +116,6 @@ const (
 	StageSubmission
 	StageVoting
 	StageResult
-	// StageDisabled
 )
 
 func (s Stage) String() string {
@@ -150,7 +143,6 @@ func (s Stage) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaler interface
 func (s *Stage) UnmarshalJSON(data []byte) error {
 	str := string(data)
-	// Remove quotes
 	if len(str) >= 2 && str[0] == '"' && str[len(str)-1] == '"' {
 		str = str[1 : len(str)-1]
 	}
