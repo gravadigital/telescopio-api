@@ -144,14 +144,14 @@ func (a *VoteRepositoryAdapter) CreateAssignment(assignment *vote.Assignment) er
 		return fmt.Errorf("assignment cannot be nil")
 	}
 
-	a.log.Debug("creating assignment", 
-		"assignment_id", assignment.ID, 
-		"event_id", assignment.EventID, 
+	a.log.Debug("creating assignment",
+		"assignment_id", assignment.ID,
+		"event_id", assignment.EventID,
 		"participant_id", assignment.ParticipantID)
 
 	if err := a.repo.CreateAssignment(assignment); err != nil {
-		a.log.Error("failed to create assignment", 
-			"assignment_id", assignment.ID, 
+		a.log.Error("failed to create assignment",
+			"assignment_id", assignment.ID,
 			"event_id", assignment.EventID,
 			"error", err)
 		return fmt.Errorf("failed to create assignment: %w", err)
@@ -187,15 +187,15 @@ func (a *VoteRepositoryAdapter) GetAssignmentByParticipant(eventID, participantI
 
 	result, err := a.repo.GetAssignmentByParticipant(eventID, participantID)
 	if err != nil {
-		a.log.Error("failed to retrieve assignment by participant", 
-			"event_id", eventID, 
-			"participant_id", participantID, 
+		a.log.Error("failed to retrieve assignment by participant",
+			"event_id", eventID,
+			"participant_id", participantID,
 			"error", err)
 		return nil, fmt.Errorf("failed to retrieve assignment for participant %s in event %s: %w", participantID, eventID, err)
 	}
 
-	a.log.Debug("assignment retrieved successfully", 
-		"event_id", eventID, 
+	a.log.Debug("assignment retrieved successfully",
+		"event_id", eventID,
 		"participant_id", participantID,
 		"assignment_id", result.ID)
 	return result, nil
@@ -207,15 +207,15 @@ func (a *VoteRepositoryAdapter) UpdateAssignment(assignment *vote.Assignment) er
 		return fmt.Errorf("assignment cannot be nil")
 	}
 
-	a.log.Debug("updating assignment", 
-		"assignment_id", assignment.ID, 
-		"event_id", assignment.EventID, 
+	a.log.Debug("updating assignment",
+		"assignment_id", assignment.ID,
+		"event_id", assignment.EventID,
 		"participant_id", assignment.ParticipantID,
 		"is_completed", assignment.IsCompleted)
 
 	if err := a.repo.UpdateAssignment(assignment); err != nil {
-		a.log.Error("failed to update assignment", 
-			"assignment_id", assignment.ID, 
+		a.log.Error("failed to update assignment",
+			"assignment_id", assignment.ID,
 			"error", err)
 		return fmt.Errorf("failed to update assignment: %w", err)
 	}
@@ -240,13 +240,13 @@ func NewAttachmentRepositoryAdapter(repo postgres.AttachmentRepository) *Attachm
 
 func (a *AttachmentRepositoryAdapter) GetByID(id string) (common.AttachmentInterface, error) {
 	a.log.Debug("Retrieving attachment by ID", "id", id)
-	
+
 	// Validate attachment ID format
 	if _, err := uuid.Parse(id); err != nil {
 		a.log.Error("Invalid attachment ID format", "id", id, "error", err)
 		return nil, fmt.Errorf("invalid attachment ID format: %w", err)
 	}
-	
+
 	attachmentObj, err := a.repo.GetByID(id)
 	if err != nil {
 		a.log.Error("Failed to retrieve attachment", "id", id, "error", err)
@@ -260,13 +260,13 @@ func (a *AttachmentRepositoryAdapter) GetByID(id string) (common.AttachmentInter
 
 func (a *AttachmentRepositoryAdapter) GetByEventID(eventID string) ([]common.AttachmentInterface, error) {
 	a.log.Debug("Retrieving attachments by event ID", "event_id", eventID)
-	
+
 	// Validate event ID format
 	if _, err := uuid.Parse(eventID); err != nil {
 		a.log.Error("Invalid event ID format", "event_id", eventID, "error", err)
 		return nil, fmt.Errorf("invalid event ID format: %w", err)
 	}
-	
+
 	attachments, err := a.repo.GetByEventID(eventID)
 	if err != nil {
 		a.log.Error("Failed to retrieve attachments by event ID", "event_id", eventID, "error", err)
@@ -299,13 +299,13 @@ func NewUserRepositoryAdapter(repo postgres.UserRepository) *UserRepositoryAdapt
 
 func (a *UserRepositoryAdapter) GetByID(id string) (common.UserInterface, error) {
 	a.log.Debug("Retrieving user by ID", "id", id)
-	
+
 	// Validate user ID format
 	if _, err := uuid.Parse(id); err != nil {
 		a.log.Error("Invalid user ID format", "id", id, "error", err)
 		return nil, fmt.Errorf("invalid user ID format: %w", err)
 	}
-	
+
 	user, err := a.repo.GetByID(id)
 	if err != nil {
 		a.log.Error("Failed to retrieve user", "id", id, "error", err)
