@@ -2,24 +2,46 @@ package attachment
 
 import (
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/gravadigital/telescopio-api/internal/domain/common"
+	"gorm.io/gorm"
 )
 
 type Attachment struct {
-	ID            string    `json:"id" db:"id"`
-	EventID       string    `json:"event_id" db:"event_id"`
-	ParticipantID string    `json:"participant_id" db:"participant_id"`
-	Filename      string    `json:"filename" db:"filename"`
-	OriginalName  string    `json:"original_name" db:"original_name"`
-	FilePath      string    `json:"file_path" db:"file_path"`
-	FileSize      int64     `json:"file_size" db:"file_size"`
-	MimeType      string    `json:"mime_type" db:"mime_type"`
-	VoteCount     int       `json:"vote_count" db:"vote_count"`
-	UploadedAt    time.Time `json:"uploaded_at" db:"uploaded_at"`
+	ID            uuid.UUID `json:"id" gorm:"type:uuid;primaryKey;default:uuid_generate_v4()"`
+	EventID       uuid.UUID `json:"event_id" gorm:"type:uuid;not null"`
+	ParticipantID uuid.UUID `json:"participant_id" gorm:"type:uuid;not null"`
+	Filename      string    `json:"filename" gorm:"not null"`
+	OriginalName  string    `json:"original_name" gorm:"not null"`
+	FilePath      string    `json:"file_path" gorm:"not null"`
+	FileSize      int64     `json:"file_size" gorm:"not null"`
+	MimeType      string    `json:"mime_type" gorm:"not null"`
+	VoteCount     int       `json:"vote_count" gorm:"default:0"`
+	UploadedAt    time.Time `json:"uploaded_at" gorm:"autoCreateTime"`
+
+	// Relations - using shared types to avoid circular imports
+	Event       common.SharedEvent  `json:"event,omitempty" gorm:"foreignKey:EventID"`
+	Participant common.SharedUser   `json:"participant,omitempty" gorm:"foreignKey:ParticipantID"`
+	Votes       []common.SharedVote `json:"votes,omitempty" gorm:"foreignKey:AttachmentID"`
 }
 
-func NewAttachment(eventID, participantID, filename, originalName, filePath, mimeType string, fileSize int64) *Attachment {
+// TableName overrides the table name
+func (Attachment) TableName() string {
+	return "attachments"
+}
+
+// BeforeCreate will set a UUID rather than numeric ID.
+func (a *Attachment) BeforeCreate(tx *gorm.DB) error {
+	if a.ID == uuid.Nil {
+		a.ID = uuid.New()
+	}
+	return nil
+}
+
+func NewAttachment(eventID, participantID uuid.UUID, filename, originalName, filePath, mimeType string, fileSize int64) *Attachment {
 	return &Attachment{
-		ID:            generateAttachmentID(),
+		ID:            uuid.New(),
 		EventID:       eventID,
 		ParticipantID: participantID,
 		Filename:      filename,
@@ -32,6 +54,16 @@ func NewAttachment(eventID, participantID, filename, originalName, filePath, mim
 	}
 }
 
-func generateAttachmentID() string {
-	return "attachment_" + time.Now().Format("20060102150405")
+// Implement common.AttachmentInterface to avoid circular imports
+
+func (a *Attachment) GetID() uuid.UUID {
+	return a.ID
+}
+
+func (a *Attachment) GetOriginalName() string {
+	return a.OriginalName
+}
+
+func (a *Attachment) GetParticipantID() uuid.UUID {
+	return a.ParticipantID
 }
