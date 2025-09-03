@@ -53,12 +53,12 @@ func main() {
 	attachmentRepo := postgres.NewPostgresAttachmentRepository(db)
 	voteRepo := postgres.NewPostgresVoteRepository(db)
 
-	eventHandler := handlers.NewEventHandler(eventRepo, userRepo)
-	attachmentHandler := handlers.NewAttachmentHandler(attachmentRepo, eventRepo, userRepo)
+	eventHandler := handlers.NewEventHandler(eventRepo, userRepo, cfg)
+	attachmentHandler := handlers.NewAttachmentHandler(attachmentRepo, eventRepo, userRepo, cfg)
 
 	configRepo := postgres.NewPostgresVotingConfigurationRepository(db)
 	resultsRepo := postgres.NewPostgresVotingResultsRepository(db)
-	distributedVoteHandler := handlers.NewDistributedVoteHandler(voteRepo, eventRepo, attachmentRepo, userRepo, configRepo, resultsRepo)
+	distributedVoteHandler := handlers.NewDistributedVoteHandler(voteRepo, eventRepo, attachmentRepo, userRepo, configRepo, resultsRepo, cfg)
 
 	// Test database connection
 	router.GET("/health", func(c *gin.Context) {
