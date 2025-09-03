@@ -51,7 +51,7 @@ func (r *PostgresEventRepository) GetByID(id string) (*event.Event, error) {
 	}
 
 	var evt event.Event
-	if err := r.db.Preload("Author").Preload("Participants").Preload("Attachments").Preload("Votes").First(&evt, eventID).Error; err != nil {
+	if err := r.db.First(&evt, eventID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			r.log.Debug("event not found", "event_id", id)
 			return nil, errors.New("event not found")
@@ -68,7 +68,7 @@ func (r *PostgresEventRepository) GetAll() ([]*event.Event, error) {
 	r.log.Debug("retrieving all events")
 
 	var events []*event.Event
-	if err := r.db.Preload("Author").Preload("Participants").Find(&events).Error; err != nil {
+	if err := r.db.Find(&events).Error; err != nil {
 		r.log.Error("failed to retrieve events", "error", err)
 		return nil, err
 	}
@@ -87,7 +87,7 @@ func (r *PostgresEventRepository) GetByAuthor(authorID string) ([]*event.Event, 
 	}
 
 	var events []*event.Event
-	if err := r.db.Preload("Author").Preload("Participants").Where("author_id = ?", authorUUID).Find(&events).Error; err != nil {
+	if err := r.db.Where("author_id = ?", authorUUID).Find(&events).Error; err != nil {
 		r.log.Error("failed to retrieve events by author", "author_id", authorID, "error", err)
 		return nil, err
 	}
@@ -103,8 +103,7 @@ func (r *PostgresEventRepository) GetByParticipant(participantID string) ([]*eve
 	}
 
 	var events []*event.Event
-	if err := r.db.Preload("Author").Preload("Participants").
-		Joins("JOIN event_participants ON events.id = event_participants.event_id").
+	if err := r.db.Joins("JOIN event_participants ON events.id = event_participants.event_id").
 		Where("event_participants.user_id = ?", participantUUID).
 		Find(&events).Error; err != nil {
 		return nil, err
@@ -335,8 +334,7 @@ func (r *PostgresEventRepository) GetAllPaginated(params PaginationParams) (*Pag
 
 	// Get paginated events
 	var events []*event.Event
-	if err := r.db.Preload("Author").Preload("Participants").
-		Offset(offset).Limit(params.PageSize).
+	if err := r.db.Offset(offset).Limit(params.PageSize).
 		Order("created_at DESC").
 		Find(&events).Error; err != nil {
 		r.log.Error("failed to retrieve paginated events", "error", err)

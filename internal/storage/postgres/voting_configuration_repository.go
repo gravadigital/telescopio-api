@@ -207,7 +207,7 @@ func (r *PostgresVotingConfigurationRepository) ValidateConfiguration(config *vo
 	}
 
 	if config.QualityGoodThreshold <= config.QualityBadThreshold {
-		return fmt.Errorf("quality good threshold (%.2f) must be higher than quality bad threshold (%.2f)", 
+		return fmt.Errorf("quality good threshold (%.2f) must be higher than quality bad threshold (%.2f)",
 			config.QualityGoodThreshold, config.QualityBadThreshold)
 	}
 
@@ -230,15 +230,15 @@ func (r *PostgresVotingConfigurationRepository) GetConfigurationSummary(eventID 
 	}
 
 	summary := map[string]interface{}{
-		"id":                       config.ID.String(),
-		"event_id":                 config.EventID.String(),
+		"id":                        config.ID.String(),
+		"event_id":                  config.EventID.String(),
 		"attachments_per_evaluator": config.AttachmentsPerEvaluator,
-		"quality_good_threshold":   config.QualityGoodThreshold,
-		"quality_bad_threshold":    config.QualityBadThreshold,
-		"adjustment_magnitude":     config.AdjustmentMagnitude,
-		"min_evaluations_per_file": config.MinEvaluationsPerFile,
-		"created_at":               config.CreatedAt,
-		"updated_at":               config.UpdatedAt,
+		"quality_good_threshold":    config.QualityGoodThreshold,
+		"quality_bad_threshold":     config.QualityBadThreshold,
+		"adjustment_magnitude":      config.AdjustmentMagnitude,
+		"min_evaluations_per_file":  config.MinEvaluationsPerFile,
+		"created_at":                config.CreatedAt,
+		"updated_at":                config.UpdatedAt,
 	}
 
 	// Calculate additional metrics if possible
@@ -258,11 +258,11 @@ func (r *PostgresVotingConfigurationRepository) GetConfigurationSummary(eventID 
 	if participantCount > 0 && attachmentCount > 0 {
 		maxPossibleEvaluations := int64(config.AttachmentsPerEvaluator) * participantCount
 		minRequiredEvaluations := int64(config.MinEvaluationsPerFile) * attachmentCount
-		
+
 		summary["max_possible_evaluations"] = maxPossibleEvaluations
 		summary["min_required_evaluations"] = minRequiredEvaluations
 		summary["feasible"] = maxPossibleEvaluations >= minRequiredEvaluations
-		
+
 		if attachmentCount > 0 {
 			summary["avg_evaluations_per_attachment"] = float64(maxPossibleEvaluations) / float64(attachmentCount)
 		}
@@ -293,16 +293,16 @@ func (r *PostgresVotingConfigurationRepository) IsConfigurationOptimal(eventID s
 		// Check mathematical recommendations
 		// m ≥ 2*log₂(k) for convergence
 		recommendedM := int(math.Ceil(2 * math.Log2(float64(attachmentCount))))
-		
+
 		if config.AttachmentsPerEvaluator < recommendedM {
 			optimal = false
-			warnings = append(warnings, fmt.Sprintf("Attachments per evaluator (%d) is below recommended minimum (%d) for optimal convergence", 
+			warnings = append(warnings, fmt.Sprintf("Attachments per evaluator (%d) is below recommended minimum (%d) for optimal convergence",
 				config.AttachmentsPerEvaluator, recommendedM))
 		}
 	}
 
 	// Check quality thresholds
-	if config.QualityGoodThreshold - config.QualityBadThreshold < 0.2 {
+	if config.QualityGoodThreshold-config.QualityBadThreshold < 0.2 {
 		optimal = false
 		warnings = append(warnings, "Quality threshold gap is too small (< 0.2), may affect result stability")
 	}
@@ -333,13 +333,13 @@ func (r *PostgresVotingConfigurationRepository) GetConfigurationHistory(eventID 
 
 	history := []map[string]interface{}{
 		{
-			"timestamp":                config.UpdatedAt,
-			"action":                   "current",
+			"timestamp":                 config.UpdatedAt,
+			"action":                    "current",
 			"attachments_per_evaluator": config.AttachmentsPerEvaluator,
-			"quality_good_threshold":   config.QualityGoodThreshold,
-			"quality_bad_threshold":    config.QualityBadThreshold,
-			"adjustment_magnitude":     config.AdjustmentMagnitude,
-			"min_evaluations_per_file": config.MinEvaluationsPerFile,
+			"quality_good_threshold":    config.QualityGoodThreshold,
+			"quality_bad_threshold":     config.QualityBadThreshold,
+			"adjustment_magnitude":      config.AdjustmentMagnitude,
+			"min_evaluations_per_file":  config.MinEvaluationsPerFile,
 		},
 	}
 
