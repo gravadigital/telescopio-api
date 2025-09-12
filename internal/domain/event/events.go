@@ -1,6 +1,7 @@
 package event
 
 import (
+	"database/sql/driver"
 	"fmt"
 	"slices"
 	"time"
@@ -171,4 +172,29 @@ func StageFromString(s string) (Stage, bool) {
 	default:
 		return StageCreation, false
 	}
+}
+
+// Scan implements the sql.Scanner interface for database deserialization
+func (s *Stage) Scan(value interface{}) error {
+	if value == nil {
+		*s = StageCreation
+		return nil
+	}
+
+	str, ok := value.(string)
+	if !ok {
+		return fmt.Errorf("cannot scan %T into Stage", value)
+	}
+
+	stage, valid := StageFromString(str)
+	if !valid {
+		return fmt.Errorf("invalid stage value: %s", str)
+	}
+	*s = stage
+	return nil
+}
+
+// Value implements the driver.Valuer interface for database serialization
+func (s Stage) Value() (driver.Value, error) {
+	return s.String(), nil
 }

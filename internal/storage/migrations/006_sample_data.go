@@ -24,11 +24,11 @@ func migration006Up(db *gorm.DB) error {
 	eventSQL := `
         INSERT INTO events (id, name, description, author_id, start_date, end_date, stage) VALUES 
             ('660e8400-e29b-41d4-a716-446655440000', 
-             'Distributed Telescope Time Allocation 2025', 
+             'Distributed Telescope Time Allocation 2026', 
              'Annual telescope time allocation using distributed voting system based on Merrifield & Saari (2009) mathematical framework for fair and efficient proposal evaluation.',
              '550e8400-e29b-41d4-a716-446655440000',
-             '2025-09-01 00:00:00+00',
-             '2025-12-31 23:59:59+00',
+             '2026-01-15 00:00:00+00',
+             '2026-06-30 23:59:59+00',
              'registration')
         ON CONFLICT (id) DO NOTHING
     `
@@ -55,20 +55,20 @@ func migration006Up(db *gorm.DB) error {
 
 	configSQL := `
         INSERT INTO voting_configurations (
-            event_id, 
-            attachments_per_evaluator, 
+            event_id,
+            attachments_per_evaluator,
             min_evaluations_per_file,
-            quality_good_threshold, 
-            quality_bad_threshold, 
+            quality_good_threshold,
+            quality_bad_threshold,
             adjustment_magnitude,
             use_expertise_matching,
-            enable_coi_detection
+            enable_co_idetection
         ) VALUES (
             '660e8400-e29b-41d4-a716-446655440000',
             8,      -- m = 8 attachments per evaluator
             4,      -- minimum 4 evaluations per file
             0.65,   -- Q_good = 0.65 threshold
-            0.35,   -- Q_bad = 0.35 threshold  
+            0.35,   -- Q_bad = 0.35 threshold
             3,      -- n = 3 rank adjustment magnitude
             FALSE,  -- basic random assignment
             TRUE    -- enable conflict of interest detection
