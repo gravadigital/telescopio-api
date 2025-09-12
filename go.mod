@@ -1,6 +1,6 @@
 module github.com/gravadigital/telescopio-api
 
-go 1.23.0
+go 1.25.0
 
 require (
 	github.com/charmbracelet/log v0.4.2

@@ -158,7 +158,7 @@ type VotingConfiguration struct {
 	QualityBadThreshold     float64   `gorm:"type:decimal(3,2);not null;default:0.35" json:"quality_bad_threshold"`  // Q_bad
 	AdjustmentMagnitude     int       `gorm:"not null;default:3" json:"adjustment_magnitude"`                        // n parameter
 	UseExpertiseMatching    bool      `gorm:"default:false" json:"use_expertise_matching"`
-	EnableCOIDetection      bool      `gorm:"default:true" json:"enable_coi_detection"`
+	EnableCOIDetection      bool      `gorm:"column:enable_co_idetection;default:true" json:"enable_coi_detection"`
 	RandomizationSeed       *int      `json:"randomization_seed"`
 	AssignmentAlgorithm     string    `gorm:"size:50;default:'random_balanced'" json:"assignment_algorithm"`
 	ScoringAlgorithm        string    `gorm:"size:50;default:'modified_borda_count'" json:"scoring_algorithm"`

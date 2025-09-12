@@ -1,5 +1,3 @@
-version: '3.8'
-
 # Development Docker Compose Configuration
 # This file includes additional services for development
 
