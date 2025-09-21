@@ -55,6 +55,7 @@ func main() {
 
 	eventHandler := handlers.NewEventHandler(eventRepo, userRepo, cfg)
 	attachmentHandler := handlers.NewAttachmentHandler(attachmentRepo, eventRepo, userRepo, cfg)
+	userHandler := handlers.NewUserHandler(userRepo, cfg)
 
 	configRepo := postgres.NewPostgresVotingConfigurationRepository(db)
 	resultsRepo := postgres.NewPostgresVotingResultsRepository(db)
@@ -91,6 +92,15 @@ func main() {
 
 	api := router.Group("/api/v1")
 	{
+		// User management
+		users := api.Group("/users")
+		{
+			users.POST("", userHandler.CreateUser)
+			users.POST("/authenticate", userHandler.AuthenticateUser)
+			users.GET("/:user_id", userHandler.GetUser)
+		}
+
+		// Event management
 		events := api.Group("/events")
 		{
 			// Standard event management
