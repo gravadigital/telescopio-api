@@ -42,6 +42,7 @@ type UserRole string
 const (
 	UserRoleAdmin       UserRole = "admin"
 	UserRoleParticipant UserRole = "participant"
+	UserRoleOrganizer   UserRole = "organizer"
 )
 
 func (ur *UserRole) Scan(value any) error {
