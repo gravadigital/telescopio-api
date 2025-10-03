@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravadigital/telescopio-api/internal/domain/common"
 	"github.com/lib/pq"
 	"gorm.io/gorm"
 )
@@ -25,11 +24,7 @@ type Vote struct {
 	IsQualityVote         *bool     `json:"is_quality_vote"`
 	VotedAt               time.Time `json:"voted_at" gorm:"autoCreateTime"`
 
-	// Relations - using shared types to avoid circular imports
-	Event      common.SharedEvent      `json:"event,omitempty" gorm:"foreignKey:EventID"`
-	Assignment Assignment              `json:"assignment,omitempty" gorm:"foreignKey:AssignmentID"`
-	Voter      common.SharedUser       `json:"voter,omitempty" gorm:"foreignKey:VoterID"`
-	Attachment common.SharedAttachment `json:"attachment,omitempty" gorm:"foreignKey:AttachmentID"`
+	// Relations - loaded through repositories when needed to avoid circular imports
 }
 
 // Assignment represents the distributed assignment of attachments to evaluators
@@ -47,10 +42,8 @@ type Assignment struct {
 	CreatedAt           time.Time      `json:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt           time.Time      `json:"updated_at" gorm:"autoUpdateTime"`
 
-	// Relations - using shared types to avoid circular imports
-	Event       common.SharedEvent `json:"event,omitempty" gorm:"foreignKey:EventID"`
-	Participant common.SharedUser  `json:"participant,omitempty" gorm:"foreignKey:ParticipantID"`
-	Votes       []Vote             `json:"votes,omitempty" gorm:"foreignKey:AssignmentID"`
+	// Relations - loaded through repositories when needed to avoid circular imports
+	Votes []Vote `json:"votes,omitempty" gorm:"foreignKey:AssignmentID"`
 }
 
 // VotingResults represents the calculated results
@@ -65,8 +58,7 @@ type VotingResults struct {
 	CalculatedAt            time.Time          `json:"calculated_at" gorm:"autoCreateTime"`
 	UpdatedAt               time.Time          `json:"updated_at" gorm:"autoUpdateTime"`
 
-	// Relations - using shared types to avoid circular imports
-	Event common.SharedEvent `json:"event,omitempty" gorm:"foreignKey:EventID"`
+	// Relations - loaded through repositories when needed to avoid circular imports
 }
 
 // VotingConfiguration represents the mathematical parameters for the voting system
@@ -81,8 +73,7 @@ type VotingConfiguration struct {
 	CreatedAt               time.Time `json:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt               time.Time `json:"updated_at" gorm:"autoUpdateTime"`
 
-	// Relations - using shared types to avoid circular imports
-	Event common.SharedEvent `json:"event,omitempty" gorm:"foreignKey:EventID"`
+	// Relations - loaded through repositories when needed to avoid circular imports
 }
 
 // AttachmentResult represents the MBC score and ranking for an attachment

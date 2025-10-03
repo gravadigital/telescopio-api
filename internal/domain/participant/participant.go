@@ -14,6 +14,7 @@ type Role string
 const (
 	RoleAdmin       Role = "admin"
 	RoleParticipant Role = "participant"
+	RoleOrganizer   Role = "organizer"
 )
 
 // String returns the string representation of the role
@@ -23,7 +24,7 @@ func (r Role) String() string {
 
 // IsValid checks if the role is valid
 func (r Role) IsValid() bool {
-	return r == RoleAdmin || r == RoleParticipant
+	return r == RoleAdmin || r == RoleParticipant || r == RoleOrganizer
 }
 
 // User represents a system user (admin or participant)
@@ -73,6 +74,11 @@ func NewAdmin(name, lastName, email string) *User {
 	return NewUser(name, lastName, email, RoleAdmin)
 }
 
+// NewOrganizer creates a new organizer user
+func NewOrganizer(name, lastName, email string) *User {
+	return NewUser(name, lastName, email, RoleOrganizer)
+}
+
 // GetFullName returns the full name of the user
 func (u *User) GetFullName() string {
 	if u.LastName == "" {
@@ -101,6 +107,11 @@ func (u *User) IsParticipant() bool {
 	return u.Role == RoleParticipant
 }
 
+// IsOrganizer checks if the user has organizer role
+func (u *User) IsOrganizer() bool {
+	return u.Role == RoleOrganizer
+}
+
 // Validate checks if the user data is valid
 func (u *User) Validate() error {
 	if u.Name == "" {
@@ -112,7 +123,7 @@ func (u *User) Validate() error {
 	// TODO: Add email format validation using regex
 	// Example: regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
 	if !u.Role.IsValid() {
-		return fmt.Errorf("role must be 'admin' or 'participant', got: %s", u.Role)
+		return fmt.Errorf("role must be 'admin', 'participant', or 'organizer', got: %s", u.Role)
 	}
 	return nil
 }
@@ -130,24 +141,18 @@ func (u *User) GetName() string {
 // These methods should be implemented to handle role-based permissions
 
 // CanCreateEvent checks if user can create events
-// TODO: Implement permission logic based on role
 func (u *User) CanCreateEvent() bool {
-	// TODO: Define which roles can create events
-	return u.IsAdmin() // Placeholder logic
+	return u.IsAdmin() || u.IsOrganizer()
 }
 
 // CanManageParticipants checks if user can manage event participants
-// TODO: Implement permission logic for participant management
 func (u *User) CanManageParticipants() bool {
-	// TODO: Define which roles can manage participants
-	return u.IsAdmin() // Placeholder logic
+	return u.IsAdmin() || u.IsOrganizer()
 }
 
 // CanVote checks if user can participate in voting
-// TODO: Implement voting permission logic
 func (u *User) CanVote() bool {
-	// TODO: Define which roles can vote (probably both admin and participant)
-	return u.IsParticipant() || u.IsAdmin() // Placeholder logic
+	return u.IsParticipant() || u.IsAdmin() || u.IsOrganizer()
 }
 
 // CanViewResults checks if user can view voting results
@@ -158,10 +163,8 @@ func (u *User) CanViewResults() bool {
 }
 
 // CanModifyVotingConfiguration checks if user can modify voting settings
-// TODO: Implement voting configuration permission logic
 func (u *User) CanModifyVotingConfiguration() bool {
-	// TODO: Define which roles can modify voting configuration
-	return u.IsAdmin() // Placeholder logic
+	return u.IsAdmin() || u.IsOrganizer()
 }
 
 // HasPermission checks if user has a specific permission

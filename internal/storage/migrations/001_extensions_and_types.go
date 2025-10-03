@@ -23,7 +23,8 @@ func migration001Up(db *gorm.DB) error {
 	if err := db.Exec(`
         CREATE TYPE user_role AS ENUM (
             'admin',
-            'participant'
+            'participant',
+            'organizer'
         )
     `).Error; err != nil {
 		return err

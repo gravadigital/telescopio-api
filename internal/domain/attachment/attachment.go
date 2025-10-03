@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravadigital/telescopio-api/internal/domain/common"
 	"gorm.io/gorm"
 )
 
@@ -19,11 +18,6 @@ type Attachment struct {
 	MimeType      string    `json:"mime_type" gorm:"not null"`
 	VoteCount     int       `json:"vote_count" gorm:"default:0"`
 	UploadedAt    time.Time `json:"uploaded_at" gorm:"autoCreateTime"`
-
-	// Relations - using shared types to avoid circular imports
-	Event       common.SharedEvent  `json:"event,omitempty" gorm:"foreignKey:EventID"`
-	Participant common.SharedUser   `json:"participant,omitempty" gorm:"foreignKey:ParticipantID"`
-	Votes       []common.SharedVote `json:"votes,omitempty" gorm:"foreignKey:AttachmentID"`
 }
 
 // TableName overrides the table name
@@ -54,7 +48,7 @@ func NewAttachment(eventID, participantID uuid.UUID, filename, originalName, fil
 	}
 }
 
-// Implement common.AttachmentInterface to avoid circular imports
+// Interface implementation for cross-domain references
 
 func (a *Attachment) GetID() uuid.UUID {
 	return a.ID
