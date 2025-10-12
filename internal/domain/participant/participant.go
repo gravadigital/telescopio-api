@@ -31,7 +31,7 @@ func (r Role) IsValid() bool {
 type User struct {
 	ID        uuid.UUID `json:"id" gorm:"type:uuid;primaryKey;default:uuid_generate_v4()"`
 	Name      string    `json:"name" gorm:"not null"`
-	LastName  string    `json:"lastname"`
+	LastName  string    `json:"lastname" gorm:"column:lastname"`
 	Email     string    `json:"email" gorm:"uniqueIndex;not null"`
 	Role      Role      `json:"role" gorm:"type:varchar(20);not null;default:'participant'"`
 	CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime"`
