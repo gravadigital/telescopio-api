@@ -67,7 +67,7 @@ func (ur UserRole) Value() (driver.Value, error) {
 type User struct {
 	ID        uuid.UUID `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
 	Name      string    `gorm:"not null" json:"name"`
-	Lastname  string    `json:"lastname"`
+	Lastname  string    `gorm:"column:lastname" json:"lastname"`
 	Email     string    `gorm:"uniqueIndex;not null" json:"email"`
 	Role      UserRole  `gorm:"type:user_role;not null;default:'participant'" json:"role"`
 	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`

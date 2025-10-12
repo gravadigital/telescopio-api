@@ -105,6 +105,7 @@ func main() {
 		{
 			// Standard event management
 			events.GET("", eventHandler.GetAllEvents)
+			events.GET("/:event_id", eventHandler.GetEvent)
 			events.POST("", eventHandler.CreateEvent)
 			events.PATCH("/:event_id/stage", eventHandler.UpdateEventStage)
 			events.POST("/:event_id/register", eventHandler.RegisterParticipant)
