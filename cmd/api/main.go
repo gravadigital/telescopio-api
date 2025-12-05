@@ -9,6 +9,7 @@ import (
 	"github.com/gravadigital/telescopio-api/internal/config"
 	"github.com/gravadigital/telescopio-api/internal/handlers"
 	"github.com/gravadigital/telescopio-api/internal/logger"
+	"github.com/gravadigital/telescopio-api/internal/middleware/auth"
 	"github.com/gravadigital/telescopio-api/internal/middleware/events"
 	"github.com/gravadigital/telescopio-api/internal/storage/postgres"
 )
@@ -92,34 +93,72 @@ func main() {
 
 	api := router.Group("/api/v1")
 	{
-		// User management
+		// User management - Public endpoints (no auth required)
 		users := api.Group("/users")
 		{
-			users.POST("", userHandler.CreateUser)
-			users.POST("/authenticate", userHandler.AuthenticateUser)
-			users.GET("/:user_id", userHandler.GetUser)
+			users.POST("", userHandler.CreateUser)                  // Register new user (returns JWT)
+			users.POST("/authenticate", userHandler.AuthenticateUser) // Login (returns JWT)
 		}
 
-		// Event management
-		events := api.Group("/events")
+		// Protected user endpoints (require authentication)
+		usersProtected := api.Group("/users")
+		usersProtected.Use(auth.JWTAuthMiddleware())
 		{
-			// Standard event management
-			events.GET("", eventHandler.GetAllEvents)
-			events.GET("/:event_id", eventHandler.GetEvent)
+			usersProtected.GET("/:user_id", userHandler.GetUser)
+		}
+
+		// Event management - Public endpoints (no authentication required)
+		eventsPublic := api.Group("/events")
+		{
+			eventsPublic.GET("", eventHandler.GetAllEvents)        // List all events
+			eventsPublic.GET("/:event_id", eventHandler.GetEvent)  // Get event details
+			eventsPublic.POST("/:event_id/register", eventHandler.RegisterParticipant) // Register for event (creates user if doesn't exist)
+		}
+
+		// Event management - Protected endpoints (require authentication)
+		events := api.Group("/events")
+		events.Use(auth.JWTAuthMiddleware())
+		{
+			// Create event - Any authenticated user can create events
 			events.POST("", eventHandler.CreateEvent)
-			events.PATCH("/:event_id/stage", eventHandler.UpdateEventStage)
-			events.POST("/:event_id/register", eventHandler.RegisterParticipant)
+
+			// Update event stage - Only event owner or admin
+			events.PATCH("/:event_id/stage",
+				auth.RequireEventOwner(eventRepo),
+				eventHandler.UpdateEventStage)
+
+			// Get event participants - Any authenticated user
 			events.GET("/:event_id/participants", eventHandler.GetEventParticipants)
 
-			// Attachment management
-			events.POST("/:event_id/participant/:participant_id/attachment", attachmentHandler.UploadAttachment)
+			// Attachment management - Participant or event owner
+			events.POST("/:event_id/participant/:participant_id/attachment",
+				auth.RequireParticipantOrOwner(eventRepo),
+				attachmentHandler.UploadAttachment)
 
-			// Voting system
-			events.POST("/:event_id/voting-config", distributedVoteHandler.CreateVotingConfiguration)
-			events.POST("/:event_id/generate-assignments", distributedVoteHandler.GenerateAssignments)
-			events.GET("/:event_id/participants/:participant_id/assignment", distributedVoteHandler.GetParticipantAssignment)
-			events.POST("/:event_id/participants/:participant_id/ranking-votes", distributedVoteHandler.SubmitRankingVotes)
+			// Voting configuration - Only event owner/organizer/admin
+			events.POST("/:event_id/voting-config",
+				auth.RequireEventOwnerOrOrganizer(eventRepo),
+				distributedVoteHandler.CreateVotingConfiguration)
+
+			// Generate assignments - Only event owner/organizer/admin
+			events.POST("/:event_id/generate-assignments",
+				auth.RequireEventOwnerOrOrganizer(eventRepo),
+				distributedVoteHandler.GenerateAssignments)
+
+			// Get participant assignment - Participant themselves or event owner
+			events.GET("/:event_id/participants/:participant_id/assignment",
+				auth.RequireParticipantOrOwner(eventRepo),
+				distributedVoteHandler.GetParticipantAssignment)
+
+			// Submit ranking votes - Participant themselves or event owner
+			events.POST("/:event_id/participants/:participant_id/ranking-votes",
+				auth.RequireParticipantOrOwner(eventRepo),
+				distributedVoteHandler.SubmitRankingVotes)
+
+			// Get results - Any authenticated user
 			events.GET("/:event_id/distributed-results", distributedVoteHandler.GetDistributedResults)
+
+			// Get voting statistics - Any authenticated user
 			events.GET("/:event_id/voting-statistics", distributedVoteHandler.GetVotingStatistics)
 		}
 	}

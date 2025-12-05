@@ -8,6 +8,7 @@ import (
 	"github.com/gravadigital/telescopio-api/internal/config"
 	"github.com/gravadigital/telescopio-api/internal/domain/participant"
 	"github.com/gravadigital/telescopio-api/internal/logger"
+	"github.com/gravadigital/telescopio-api/internal/middleware/auth"
 	"github.com/gravadigital/telescopio-api/internal/storage/postgres"
 )
 
@@ -55,9 +56,22 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 	existingUser, err := h.userRepo.GetByEmail(req.Email)
 	if err == nil && existingUser != nil {
 		h.log.Info("user already exists", "email", req.Email)
-		// Return existing user
+
+		// Generate JWT token
+		token, err := auth.GenerateToken(existingUser.ID, existingUser.Email, existingUser.Role)
+		if err != nil {
+			h.log.Error("failed to generate token", "error", err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "Failed to generate authentication token",
+				"code":  "TOKEN_GENERATION_ERROR",
+			})
+			return
+		}
+
+		// Return existing user with token
 		c.JSON(http.StatusOK, gin.H{
 			"message": "User already exists",
+			"token":   token,
 			"user": gin.H{
 				"id":         existingUser.ID.String(),
 				"name":       existingUser.Name,
@@ -75,7 +89,7 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 		Name:     req.Name,
 		LastName: req.LastName,
 		Email:    req.Email,
-		Role:     participant.RoleParticipant,
+		Role:     participant.RoleOrganizer, // Changed from RoleParticipant to allow event creation
 	}
 
 	err = h.userRepo.Create(user)
@@ -90,8 +104,20 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 
 	h.log.Info("user created successfully", "id", user.ID, "email", user.Email)
 
+	// Generate JWT token for new user
+	token, err := auth.GenerateToken(user.ID, user.Email, user.Role)
+	if err != nil {
+		h.log.Error("failed to generate token for new user", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to generate authentication token",
+			"code":  "TOKEN_GENERATION_ERROR",
+		})
+		return
+	}
+
 	c.JSON(http.StatusCreated, gin.H{
 		"message": "User created successfully",
+		"token":   token,
 		"user": gin.H{
 			"id":         user.ID.String(),
 			"name":       user.Name,
@@ -122,8 +148,21 @@ func (h *UserHandler) AuthenticateUser(c *gin.Context) {
 	existingUser, err := h.userRepo.GetByEmail(req.Email)
 	if err == nil && existingUser != nil {
 		h.log.Info("user authenticated", "email", req.Email)
+
+		// Generate JWT token
+		token, err := auth.GenerateToken(existingUser.ID, existingUser.Email, existingUser.Role)
+		if err != nil {
+			h.log.Error("failed to generate token", "error", err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "Failed to generate authentication token",
+				"code":  "TOKEN_GENERATION_ERROR",
+			})
+			return
+		}
+
 		c.JSON(http.StatusOK, gin.H{
 			"message": "User authenticated successfully",
+			"token":   token,
 			"user": gin.H{
 				"id":         existingUser.ID.String(),
 				"name":       existingUser.Name,
@@ -165,8 +204,20 @@ func (h *UserHandler) AuthenticateUser(c *gin.Context) {
 
 	h.log.Info("new user created during authentication", "id", user.ID, "email", user.Email)
 
+	// Generate JWT token for new user
+	token, err := auth.GenerateToken(user.ID, user.Email, user.Role)
+	if err != nil {
+		h.log.Error("failed to generate token for new user", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to generate authentication token",
+			"code":  "TOKEN_GENERATION_ERROR",
+		})
+		return
+	}
+
 	c.JSON(http.StatusCreated, gin.H{
 		"message": "User created and authenticated successfully",
+		"token":   token,
 		"user": gin.H{
 			"id":         user.ID.String(),
 			"name":       user.Name,

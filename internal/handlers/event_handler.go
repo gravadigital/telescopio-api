@@ -36,6 +36,8 @@ type CreateEventRequest struct {
 	Description string `json:"description" binding:"required,min=10,max=2000"`
 	StartDate   string `json:"start_date" binding:"required"`
 	EndDate     string `json:"end_date" binding:"required"`
+	Organizer   string `json:"organizer"`
+	AuthorID    string `json:"author_id"` // Optional: if provided, use this as author_id
 }
 
 // CreateEvent handles POST /api/events
@@ -132,19 +134,49 @@ func (h *EventHandler) CreateEvent(c *gin.Context) {
 		return
 	}
 
-	// TODO: Get authorID from authentication
-	// user, err := h.userRepo.GetByID(userID)
-	// if err != nil {
-	//     h.log.Error("user not found", "user_id", userID, "error", err)
-	//     c.JSON(http.StatusNotFound, gin.H{
-	//         "error": "User not found",
-	//         "code":  "USER_NOT_FOUND",
-	//     })
-	//     return
-	// }
-
-	// For now, use a placeholder author ID
-	authorID := uuid.New() // TODO: Replace with authenticated user ID
+	// Determine authorID:
+	// 1. If author_id provided in request, use it (temporary solution)
+	// 2. Otherwise, fall back to first user (legacy behavior)
+	// TODO: Get authorID from authentication middleware
+	var authorID uuid.UUID
+	if req.AuthorID != "" {
+		// Validate UUID format
+		parsedID, err := uuid.Parse(req.AuthorID)
+		if err != nil {
+			h.log.Warn("invalid author_id format", "author_id", req.AuthorID, "error", err)
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":   "Invalid author_id format",
+				"code":    "INVALID_AUTHOR_ID",
+				"details": "Must be a valid UUID",
+			})
+			return
+		}
+		// Verify user exists
+		user, err := h.userRepo.GetByID(parsedID.String())
+		if err != nil {
+			h.log.Error("author not found", "author_id", req.AuthorID, "error", err)
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": "Author user not found",
+				"code":  "AUTHOR_NOT_FOUND",
+			})
+			return
+		}
+		authorID = parsedID
+		h.log.Debug("using provided author_id", "author_id", authorID, "author_name", user.Name)
+	} else {
+		// Fallback: use the first available user as author
+		allUsers, err := h.userRepo.GetAll()
+		if err != nil || len(allUsers) == 0 {
+			h.log.Error("no users found in database", "error", err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "No users available to create event",
+				"code":  "NO_USERS_AVAILABLE",
+			})
+			return
+		}
+		authorID = allUsers[0].ID
+		h.log.Debug("using first available user as event author (fallback)", "author_id", authorID)
+	}
 
 	// Check for duplicate event names (optional business rule)
 	existingEvents, err := h.eventRepo.GetAll()
@@ -161,7 +193,7 @@ func (h *EventHandler) CreateEvent(c *gin.Context) {
 		}
 	}
 
-	newEvent := event.NewEvent(req.Name, req.Description, authorID, startDate, endDate)
+	newEvent := event.NewEvent(req.Name, req.Description, authorID, startDate, endDate, req.Organizer)
 
 	// Validate the event domain entity
 	if err := newEvent.Validate(); err != nil {
@@ -186,12 +218,13 @@ func (h *EventHandler) CreateEvent(c *gin.Context) {
 	h.log.Info("event created successfully", "event_id", newEvent.ID, "event_name", newEvent.Name, "author_id", authorID)
 
 	c.JSON(http.StatusCreated, gin.H{
-		"data": gin.H{
+		"event": gin.H{
 			"id":          newEvent.ID.String(),
 			"name":        newEvent.Name,
 			"description": newEvent.Description,
 			"start_date":  newEvent.StartDate.Format("2006-01-02"),
 			"end_date":    newEvent.EndDate.Format("2006-01-02"),
+			"organizer":   newEvent.Organizer,
 			"stage":       newEvent.Stage.String(),
 			"author_id":   newEvent.AuthorID.String(),
 			"created_at":  newEvent.CreatedAt,
@@ -418,6 +451,8 @@ func (h *EventHandler) RegisterParticipant(c *gin.Context) {
 	}
 
 	// Only allow registration during registration stage
+	// The stage is controlled by the event creator/organizer, so we trust their decision
+	// to keep registration open regardless of the start date
 	if eventObj.Stage != event.StageRegistration {
 		h.log.Warn("registration attempt outside registration stage",
 			"event_id", eventID,
@@ -430,16 +465,9 @@ func (h *EventHandler) RegisterParticipant(c *gin.Context) {
 		return
 	}
 
-	// Check if registration is still open (event hasn't started)
-	now := time.Now()
-	if now.After(eventObj.StartDate) {
-		h.log.Warn("registration attempt after event start", "event_id", eventID, "start_date", eventObj.StartDate)
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Registration is closed - event has already started",
-			"code":  "REGISTRATION_CLOSED",
-		})
-		return
-	}
+	// Note: We do NOT check if the event has started based on start_date
+	// The event organizer controls when registration closes by changing the stage
+	// This allows for late registrations if the organizer permits it
 
 	// Check if user already exists by email
 	existingUser, err := h.userRepo.GetByEmail(req.ParticipantEmail)
