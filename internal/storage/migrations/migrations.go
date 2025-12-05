@@ -54,6 +54,12 @@ func GetMigrations() []Migration {
 			Up:   migration006Up,
 			Down: migration006Down,
 		},
+		{
+			ID:   "007",
+			Name: "add_organizer_to_events",
+			Up:   migration007Up,
+			Down: migration007Down,
+		},
 	}
 }
 

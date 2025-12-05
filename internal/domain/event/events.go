@@ -18,6 +18,7 @@ type Event struct {
 	AuthorID    uuid.UUID `json:"author_id" gorm:"type:uuid;not null"`
 	StartDate   time.Time `json:"start_date" gorm:"not null"`
 	EndDate     time.Time `json:"end_date" gorm:"not null"`
+	Organizer   string    `json:"organizer" gorm:"default:''"`
 	Stage       Stage     `json:"stage" gorm:"type:event_stage;not null;default:'creation'"`
 	CreatedAt   time.Time `json:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt   time.Time `json:"updated_at" gorm:"autoUpdateTime"`
@@ -37,7 +38,7 @@ func (e *Event) BeforeCreate(tx *gorm.DB) error {
 }
 
 // NewEvent creates a new event with the given parameters
-func NewEvent(name, description string, authorID uuid.UUID, startDate, endDate time.Time) *Event {
+func NewEvent(name, description string, authorID uuid.UUID, startDate, endDate time.Time, organizer string) *Event {
 	return &Event{
 		ID:          uuid.New(),
 		Name:        name,
@@ -45,6 +46,7 @@ func NewEvent(name, description string, authorID uuid.UUID, startDate, endDate t
 		AuthorID:    authorID,
 		StartDate:   startDate,
 		EndDate:     endDate,
+		Organizer:   organizer,
 		Stage:       StageCreation,
 		CreatedAt:   time.Now(),
 	}
@@ -109,31 +111,18 @@ func (e *Event) GetName() string {
 }
 
 // Stage represents the current stage of an event
-type Stage byte
+type Stage string
 
 const (
-	StageCreation Stage = iota
-	StageRegistration
-	StageSubmission
-	StageVoting
-	StageResult
+	StageCreation     Stage = "creation"
+	StageRegistration Stage = "registration"
+	StageSubmission   Stage = "attachment_upload"
+	StageVoting       Stage = "voting"
+	StageResult       Stage = "results"
 )
 
 func (s Stage) String() string {
-	switch s {
-	case StageCreation:
-		return "creation"
-	case StageRegistration:
-		return "registration"
-	case StageSubmission:
-		return "attachment_upload"
-	case StageVoting:
-		return "voting"
-	case StageResult:
-		return "results"
-	default:
-		return "unknown"
-	}
+	return string(s)
 }
 
 // MarshalJSON implements the json.Marshaler interface
@@ -183,7 +172,12 @@ func (s *Stage) Scan(value interface{}) error {
 
 	str, ok := value.(string)
 	if !ok {
-		return fmt.Errorf("cannot scan %T into Stage", value)
+		// Try to convert bytes to string
+		if b, ok := value.([]byte); ok {
+			str = string(b)
+		} else {
+			return fmt.Errorf("cannot scan %T into Stage", value)
+		}
 	}
 
 	stage, valid := StageFromString(str)
@@ -196,5 +190,5 @@ func (s *Stage) Scan(value interface{}) error {
 
 // Value implements the driver.Valuer interface for database serialization
 func (s Stage) Value() (driver.Value, error) {
-	return s.String(), nil
+	return string(s), nil
 }

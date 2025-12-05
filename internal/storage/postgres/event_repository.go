@@ -144,20 +144,29 @@ func (r *PostgresEventRepository) AddParticipant(eventID, userID string) error {
 		return errors.New("invalid user ID format")
 	}
 
-	// Use GORM's association mode to add participant
+	// Verify event exists
 	var evt event.Event
 	if err := r.db.First(&evt, eventUUID).Error; err != nil {
 		r.log.Error("event not found for participant addition", "event_id", eventID, "error", err)
 		return errors.New("event not found")
 	}
 
+	// Verify user exists
 	var user participant.User
 	if err := r.db.First(&user, userUUID).Error; err != nil {
 		r.log.Error("user not found for participant addition", "user_id", userID, "error", err)
 		return errors.New("user not found")
 	}
 
-	if err := r.db.Model(&evt).Association("Participants").Append(&user); err != nil {
+	// Insert directly into event_participants junction table
+	// Use raw SQL to avoid GORM association issues
+	query := `
+		INSERT INTO event_participants (event_id, user_id, joined_at)
+		VALUES ($1, $2, NOW())
+		ON CONFLICT (event_id, user_id) DO NOTHING
+	`
+
+	if err := r.db.Exec(query, eventUUID, userUUID).Error; err != nil {
 		r.log.Error("failed to add participant to event", "event_id", eventID, "user_id", userID, "error", err)
 		return err
 	}
