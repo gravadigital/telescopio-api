@@ -1,6 +1,8 @@
 package vote
 
 import (
+	"database/sql/driver"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -48,15 +50,15 @@ type Assignment struct {
 
 // VotingResults represents the calculated results
 type VotingResults struct {
-	ID                      uuid.UUID          `json:"id" gorm:"type:uuid;primaryKey;default:uuid_generate_v4()"`
-	EventID                 uuid.UUID          `json:"event_id" gorm:"type:uuid;not null;uniqueIndex"`
-	GlobalRanking           []AttachmentResult `json:"global_ranking" gorm:"type:jsonb"`
-	ParticipantQualities    map[string]float64 `json:"participant_qualities" gorm:"type:jsonb"`
-	AdjustedRanking         []AttachmentResult `json:"adjusted_ranking" gorm:"type:jsonb"`
-	TotalParticipants       int                `json:"total_participants"`
-	AttachmentsPerEvaluator int                `json:"attachments_per_evaluator"` // m parameter
-	CalculatedAt            time.Time          `json:"calculated_at" gorm:"autoCreateTime"`
-	UpdatedAt               time.Time          `json:"updated_at" gorm:"autoUpdateTime"`
+	ID                      uuid.UUID             `json:"id" gorm:"type:uuid;primaryKey;default:uuid_generate_v4()"`
+	EventID                 uuid.UUID             `json:"event_id" gorm:"type:uuid;not null;uniqueIndex"`
+	GlobalRanking           AttachmentResultSlice `json:"global_ranking" gorm:"type:jsonb"`
+	ParticipantQualities    ParticipantQualityMap `json:"participant_qualities" gorm:"type:jsonb"`
+	AdjustedRanking         AttachmentResultSlice `json:"adjusted_ranking" gorm:"type:jsonb"`
+	TotalParticipants       int                   `json:"total_participants"`
+	AttachmentsPerEvaluator int                   `json:"attachments_per_evaluator"` // m parameter
+	CalculatedAt            time.Time             `json:"calculated_at" gorm:"autoCreateTime"`
+	UpdatedAt               time.Time             `json:"updated_at" gorm:"autoUpdateTime"`
 
 	// Relations - loaded through repositories when needed to avoid circular imports
 }
@@ -86,6 +88,58 @@ type AttachmentResult struct {
 	AdjustedRank  int       `json:"adjusted_rank"`
 	VoteCount     int       `json:"vote_count"`
 	AverageRank   float64   `json:"average_rank"`
+}
+
+// AttachmentResultSlice is a custom type for JSONB serialization
+type AttachmentResultSlice []AttachmentResult
+
+// Value implements driver.Valuer interface for JSONB serialization
+func (a AttachmentResultSlice) Value() (driver.Value, error) {
+	if a == nil {
+		return nil, nil
+	}
+	return json.Marshal(a)
+}
+
+// Scan implements sql.Scanner interface for JSONB deserialization
+func (a *AttachmentResultSlice) Scan(value interface{}) error {
+	if value == nil {
+		*a = nil
+		return nil
+	}
+
+	bytes, ok := value.([]byte)
+	if !ok {
+		return fmt.Errorf("failed to scan AttachmentResultSlice: expected []byte, got %T", value)
+	}
+
+	return json.Unmarshal(bytes, a)
+}
+
+// ParticipantQualityMap is a custom type for JSONB serialization
+type ParticipantQualityMap map[string]float64
+
+// Value implements driver.Valuer interface for JSONB serialization
+func (p ParticipantQualityMap) Value() (driver.Value, error) {
+	if p == nil {
+		return nil, nil
+	}
+	return json.Marshal(p)
+}
+
+// Scan implements sql.Scanner interface for JSONB deserialization
+func (p *ParticipantQualityMap) Scan(value interface{}) error {
+	if value == nil {
+		*p = nil
+		return nil
+	}
+
+	bytes, ok := value.([]byte)
+	if !ok {
+		return fmt.Errorf("failed to scan ParticipantQualityMap: expected []byte, got %T", value)
+	}
+
+	return json.Unmarshal(bytes, p)
 }
 
 // TableName overrides the table name

@@ -353,14 +353,16 @@ func (h *AttachmentHandler) GetEventAttachments(c *gin.Context) {
 	// Transform to response format
 	attachmentData := make([]gin.H, len(attachments))
 	for i, att := range attachments {
+		downloadURL := fmt.Sprintf("/api/v1/attachments/%s/download", att.ID.String())
 		attachmentData[i] = gin.H{
 			"id":             att.ID.String(),
-			"filename":       att.OriginalName,
-			"size":           att.FileSize,
-			"mime_type":      att.MimeType,
-			"vote_count":     att.VoteCount,
-			"uploaded_at":    att.UploadedAt,
+			"event_id":       att.EventID.String(),
 			"participant_id": att.ParticipantID.String(),
+			"original_name":  att.OriginalName,
+			"file_size":      att.FileSize,
+			"mime_type":      att.MimeType,
+			"uploaded_at":    att.UploadedAt,
+			"url":            downloadURL,
 		}
 	}
 
