@@ -82,12 +82,8 @@ func (h *DistributedVoteHandler) CreateVotingConfiguration(c *gin.Context) {
 		return
 	}
 
-	// TODO: Add authentication check
-	// userID := c.GetString("user_id") // From JWT middleware
-	// if userID == "" {
-	//     c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required", "code": "UNAUTHORIZED"})
-	//     return
-	// }
+	// Authorization handled by RequireEventOwnerOrOrganizer middleware
+	// User is guaranteed to have permission to configure this event
 
 	var req struct {
 		AttachmentsPerEvaluator int     `json:"attachments_per_evaluator" binding:"required,min=1,max=50"`
@@ -130,21 +126,15 @@ func (h *DistributedVoteHandler) CreateVotingConfiguration(c *gin.Context) {
 		return
 	}
 
-	// TODO: Check if user has permission to configure this event
-	// user, err := h.userRepo.GetByID(userID)
-	// if err != nil || (!user.HasRole(participant.RoleAdmin) && eventObj.AuthorID.String() != userID) {
-	//     c.JSON(http.StatusForbidden, gin.H{
-	//         "error": "Insufficient permissions to configure this event",
-	//         "code":  "INSUFFICIENT_PERMISSIONS",
-	//     })
-	//     return
-	// }
+	// Authorization handled by RequireEventOwnerOrOrganizer middleware
+	// User is guaranteed to have permission to configure this event
 
-	// Only allow configuration in registration stage
-	if eventObj.Stage != event.StageRegistration {
+	// Only allow configuration during attachment_upload or voting stages
+	// (after participants have uploaded files but before results are calculated)
+	if eventObj.Stage != event.StageSubmission && eventObj.Stage != event.StageVoting {
 		h.log.Warn("voting configuration attempt in wrong stage", "event_id", eventID, "current_stage", eventObj.Stage)
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":         "Voting configuration can only be set during registration stage",
+			"error":         "Voting configuration can only be set during attachment_upload or voting stages",
 			"code":          "INVALID_EVENT_STAGE",
 			"current_stage": eventObj.Stage.String(),
 		})
@@ -328,16 +318,8 @@ func (h *DistributedVoteHandler) GenerateAssignments(c *gin.Context) {
 		return
 	}
 
-	// TODO: Add authentication and authorization check
-	// userID := c.GetString("user_id")
-	// user, err := h.userRepo.GetByID(userID)
-	// if err != nil || !user.HasRole(participant.RoleAdmin) {
-	//     c.JSON(http.StatusForbidden, gin.H{
-	//         "error": "Insufficient permissions to generate assignments",
-	//         "code":  "INSUFFICIENT_PERMISSIONS",
-	//     })
-	//     return
-	// }
+	// Authorization handled by RequireEventOwnerOrOrganizer middleware
+	// User is guaranteed to have permission to generate assignments
 
 	// Check if event exists and is in voting stage
 	eventObj, err := h.eventRepo.GetByID(eventID)

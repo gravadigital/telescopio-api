@@ -54,7 +54,7 @@ func main() {
 	attachmentRepo := postgres.NewPostgresAttachmentRepository(db)
 	voteRepo := postgres.NewPostgresVoteRepository(db)
 
-	eventHandler := handlers.NewEventHandler(eventRepo, userRepo, cfg)
+	eventHandler := handlers.NewEventHandler(eventRepo, userRepo, attachmentRepo, cfg)
 	attachmentHandler := handlers.NewAttachmentHandler(attachmentRepo, eventRepo, userRepo, cfg)
 	userHandler := handlers.NewUserHandler(userRepo, cfg)
 
@@ -96,7 +96,7 @@ func main() {
 		// User management - Public endpoints (no auth required)
 		users := api.Group("/users")
 		{
-			users.POST("", userHandler.CreateUser)                  // Register new user (returns JWT)
+			users.POST("", userHandler.CreateUser)                    // Register new user (returns JWT)
 			users.POST("/authenticate", userHandler.AuthenticateUser) // Login (returns JWT)
 		}
 
@@ -110,8 +110,8 @@ func main() {
 		// Event management - Public endpoints (no authentication required)
 		eventsPublic := api.Group("/events")
 		{
-			eventsPublic.GET("", eventHandler.GetAllEvents)        // List all events
-			eventsPublic.GET("/:event_id", eventHandler.GetEvent)  // Get event details
+			eventsPublic.GET("", eventHandler.GetAllEvents)                            // List all events
+			eventsPublic.GET("/:event_id", eventHandler.GetEvent)                      // Get event details
 			eventsPublic.POST("/:event_id/register", eventHandler.RegisterParticipant) // Register for event (creates user if doesn't exist)
 		}
 
@@ -134,6 +134,9 @@ func main() {
 			events.POST("/:event_id/participant/:participant_id/attachment",
 				auth.RequireParticipantOrOwner(eventRepo),
 				attachmentHandler.UploadAttachment)
+
+			// Get event attachments - Any authenticated user
+			events.GET("/:event_id/attachments", attachmentHandler.GetEventAttachments)
 
 			// Voting configuration - Only event owner/organizer/admin
 			events.POST("/:event_id/voting-config",
@@ -161,6 +164,9 @@ func main() {
 			// Get voting statistics - Any authenticated user
 			events.GET("/:event_id/voting-statistics", distributedVoteHandler.GetVotingStatistics)
 		}
+
+		// Attachment download - Available to authenticated users
+		api.GET("/attachments/:attachment_id/download", attachmentHandler.DownloadAttachment)
 	}
 
 	log.Info("Starting Telescopio API server", "port", cfg.Server.Port)

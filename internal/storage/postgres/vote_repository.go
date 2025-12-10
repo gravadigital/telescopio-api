@@ -54,7 +54,7 @@ func (r *PostgresVoteRepository) GetByID(id string) (*vote.Vote, error) {
 	}
 
 	var v vote.Vote
-	if err := r.db.Preload("Event").Preload("Voter").Preload("Attachment").First(&v, voteID).Error; err != nil {
+	if err := r.db.First(&v, voteID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			r.log.Debug("vote not found", "vote_id", id)
 			return nil, errors.New("vote not found")
@@ -82,7 +82,7 @@ func (r *PostgresVoteRepository) GetByEventID(eventID string) ([]*vote.Vote, err
 	}
 
 	var votes []*vote.Vote
-	if err := r.db.Preload("Voter").Preload("Attachment").Where("event_id = ?", eventUUID).Find(&votes).Error; err != nil {
+	if err := r.db.Where("event_id = ?", eventUUID).Find(&votes).Error; err != nil {
 		r.log.Error("failed to retrieve votes by event ID", "event_id", eventID, "error", err)
 		return nil, fmt.Errorf("failed to retrieve votes by event ID: %w", err)
 	}
@@ -172,7 +172,7 @@ func (r *PostgresVoteRepository) GetByVoterID(voterID string) ([]*vote.Vote, err
 	}
 
 	var votes []*vote.Vote
-	if err := r.db.Preload("Event").Preload("Attachment").Where("voter_id = ?", voterUUID).Find(&votes).Error; err != nil {
+	if err := r.db.Where("voter_id = ?", voterUUID).Find(&votes).Error; err != nil {
 		r.log.Error("failed to retrieve votes by voter ID", "voter_id", voterID, "error", err)
 		return nil, fmt.Errorf("failed to retrieve votes by voter ID: %w", err)
 	}
@@ -262,7 +262,7 @@ func (r *PostgresVoteRepository) GetByAttachmentID(attachmentID string) ([]*vote
 	}
 
 	var votes []*vote.Vote
-	if err := r.db.Preload("Event").Preload("Voter").Where("attachment_id = ?", attachmentUUID).Find(&votes).Error; err != nil {
+	if err := r.db.Where("attachment_id = ?", attachmentUUID).Find(&votes).Error; err != nil {
 		r.log.Error("failed to retrieve votes by attachment ID", "attachment_id", attachmentID, "error", err)
 		return nil, fmt.Errorf("failed to retrieve votes by attachment ID: %w", err)
 	}
@@ -405,7 +405,7 @@ func (r *PostgresVoteRepository) GetAssignmentsByEventID(eventID string) ([]*vot
 	}
 
 	var assignments []*vote.Assignment
-	if err := r.db.Preload("Participant").Preload("Event").Where("event_id = ?", eventUUID).Find(&assignments).Error; err != nil {
+	if err := r.db.Where("event_id = ?", eventUUID).Find(&assignments).Error; err != nil {
 		r.log.Error("failed to retrieve assignments by event ID", "event_id", eventID, "error", err)
 		return nil, fmt.Errorf("failed to retrieve assignments by event ID: %w", err)
 	}
@@ -450,8 +450,7 @@ func (r *PostgresVoteRepository) GetAssignmentsByEventIDPaginated(eventID string
 
 	// Get paginated assignments
 	var assignments []*vote.Assignment
-	if err := r.db.Preload("Participant").Preload("Event").
-		Where("event_id = ?", eventUUID).
+	if err := r.db.Where("event_id = ?", eventUUID).
 		Offset(offset).Limit(params.PageSize).
 		Order("created_at DESC").
 		Find(&assignments).Error; err != nil {
@@ -506,7 +505,7 @@ func (r *PostgresVoteRepository) GetAssignmentByParticipant(eventID, participant
 	}
 
 	var assignment vote.Assignment
-	if err := r.db.Preload("Participant").Preload("Event").Where("event_id = ? AND participant_id = ?", eventUUID, participantUUID).First(&assignment).Error; err != nil {
+	if err := r.db.Where("event_id = ? AND participant_id = ?", eventUUID, participantUUID).First(&assignment).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			r.log.Debug("assignment not found", "event_id", eventID, "participant_id", participantID)
 			return nil, errors.New("assignment not found")
@@ -621,8 +620,7 @@ func (r *PostgresVoteRepository) GetVotesByAssignmentID(assignmentID string) ([]
 	}
 
 	var votes []*vote.Vote
-	if err := r.db.Preload("Event").Preload("Voter").Preload("Attachment").
-		Where("assignment_id = ?", assignmentUUID).Find(&votes).Error; err != nil {
+	if err := r.db.Where("assignment_id = ?", assignmentUUID).Find(&votes).Error; err != nil {
 		r.log.Error("failed to retrieve votes by assignment ID", "assignment_id", assignmentID, "error", err)
 		return nil, fmt.Errorf("failed to retrieve votes by assignment ID: %w", err)
 	}

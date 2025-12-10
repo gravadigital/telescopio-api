@@ -93,7 +93,7 @@ func (r *PostgresVotingConfigurationRepository) GetByEventID(eventID string) (*v
 	}
 
 	var config vote.VotingConfiguration
-	if err := r.db.Preload("Event").Where("event_id = ?", eventUUID).First(&config).Error; err != nil {
+	if err := r.db.Where("event_id = ?", eventUUID).First(&config).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			r.log.Debug("voting configuration not found", "event_id", eventID)
 			return nil, errors.New("voting configuration not found")

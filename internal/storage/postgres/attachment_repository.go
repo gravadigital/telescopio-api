@@ -115,7 +115,7 @@ func (r *PostgresAttachmentRepository) GetByID(id string) (*attachmentDomain.Att
 	}
 
 	var att attachmentDomain.Attachment
-	if err := r.db.Preload("Event").Preload("Participant").Preload("Votes").First(&att, attachmentID).Error; err != nil {
+	if err := r.db.First(&att, attachmentID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			r.log.Debug("attachment not found", "attachment_id", id)
 			return nil, errors.New("attachment not found")
@@ -143,7 +143,7 @@ func (r *PostgresAttachmentRepository) GetByEventID(eventID string) ([]*attachme
 	}
 
 	var attachments []*attachmentDomain.Attachment
-	if err := r.db.Preload("Participant").Where("event_id = ?", eventUUID).Find(&attachments).Error; err != nil {
+	if err := r.db.Where("event_id = ?", eventUUID).Find(&attachments).Error; err != nil {
 		r.log.Error("failed to retrieve attachments by event ID", "event_id", eventID, "error", err)
 		return nil, fmt.Errorf("failed to retrieve attachments by event ID: %w", err)
 	}
