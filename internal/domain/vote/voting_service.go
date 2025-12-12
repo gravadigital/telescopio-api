@@ -36,7 +36,6 @@ func (vs *VotingService) GenerateAssignments(eventID uuid.UUID, participants []u
 		return nil, errors.New("attachments per evaluator (m) cannot exceed total attachments (k)")
 	}
 
-	// NOTE: default recommended: m ≥ 2*log₂(k)
 	recommendedM := int(math.Ceil(2 * math.Log2(float64(k))))
 	if m < recommendedM {
 		return nil, fmt.Errorf("recommended minimum attachments per evaluator is %d for %d total attachments", recommendedM, k)
@@ -143,8 +142,6 @@ func (vs *VotingService) CalculateModifiedBordaCount(eventID uuid.UUID, config *
 		votesByAttachment[vote.AttachmentID] = append(votesByAttachment[vote.AttachmentID], vote)
 	}
 
-	// NOTE: Principal formula:
-	// Calculate MBC score for each attachment
 	var results []AttachmentResult
 	for _, attachment := range attachments {
 		attachmentVotes := votesByAttachment[attachment.GetID()]
