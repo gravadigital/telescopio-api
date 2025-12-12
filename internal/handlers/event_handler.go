@@ -314,22 +314,13 @@ func (h *EventHandler) UpdateEventStage(c *gin.Context) {
 		}
 
 	case event.StageVoting:
-		// Check if there are attachments submitted
-		// Note: This requires access to attachment repository
-		// For now, we'll just log and allow transition
-		// TODO: Add attachmentRepo to EventHandler and validate attachments exist
 		h.log.Debug("moving to voting stage", "event_id", eventID)
 		h.log.Warn("skipping attachment validation - attachment repository not available in EventHandler")
 
 	case event.StageResult:
-		// Check if voting is complete
-		// This requires checking if minimum votes have been received
-		// For now, we'll allow the transition but log a warning
 		h.log.Debug("moving to results stage", "event_id", eventID)
-		// TODO: Add validation for minimum votes received
 	}
 
-	// Update the stage
 	if err := h.eventRepo.UpdateStage(eventID, newStage); err != nil {
 		h.log.Error("failed to update event stage", "event_id", eventID, "new_stage", req.Stage, "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -442,10 +433,6 @@ func (h *EventHandler) RegisterParticipant(c *gin.Context) {
 		return
 	}
 
-	// Note: We don't check start_date here to allow flexible event management
-	// In production, you might want to add this validation back
-
-	// Check if user already exists by email
 	existingUser, err := h.userRepo.GetByEmail(req.ParticipantEmail)
 	if err != nil {
 		// User doesn't exist, create a new one
@@ -864,16 +851,6 @@ func (h *EventHandler) UpdateEvent(c *gin.Context) {
 		return
 	}
 
-	// TODO: Check if user is event owner
-	// userID := c.GetString("user_id")
-	// if existingEvent.AuthorID.String() != userID {
-	//     c.JSON(http.StatusForbidden, gin.H{
-	//         "error": "Only event owner can update the event",
-	//         "code":  "INSUFFICIENT_PERMISSIONS",
-	//     })
-	//     return
-	// }
-
 	var req CreateEventRequest // Reuse the same struct
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.log.Warn("invalid request payload for event update", "error", err)
@@ -928,14 +905,6 @@ func (h *EventHandler) UpdateEvent(c *gin.Context) {
 		return
 	}
 
-	// Update event fields - since there's no Update method, we'll comment this out for now
-	// TODO: Add Update method to EventRepository interface
-	// existingEvent.Name = req.Name
-	// existingEvent.Description = req.Description
-	// existingEvent.StartDate = startDate
-	// existingEvent.EndDate = endDate
-
-	// For now, return an error indicating this feature is not implemented
 	h.log.Warn("event update feature not implemented", "event_id", eventID)
 	c.JSON(http.StatusNotImplemented, gin.H{
 		"error":   "Event update feature is not yet implemented",
@@ -992,29 +961,6 @@ func (h *EventHandler) DeleteEvent(c *gin.Context) {
 		return
 	}
 
-	// TODO: Check if user is event owner or admin
-	// userID := c.GetString("user_id")
-	// user, err := h.userRepo.GetByID(userID)
-	// if err != nil || (!user.HasRole(participant.RoleAdmin) && existingEvent.AuthorID.String() != userID) {
-	//     c.JSON(http.StatusForbidden, gin.H{
-	//         "error": "Only event owner or admin can delete the event",
-	//         "code":  "INSUFFICIENT_PERMISSIONS",
-	//     })
-	//     return
-	// }
-
-	// Delete the event - since there's no Delete method, we'll comment this out for now
-	// TODO: Add Delete method to EventRepository interface
-	// if err := h.eventRepo.Delete(eventID); err != nil {
-	//     h.log.Error("failed to delete event", "event_id", eventID, "error", err)
-	//     c.JSON(http.StatusInternalServerError, gin.H{
-	//         "error": "Failed to delete event",
-	//         "code":  "DB_DELETE_ERROR",
-	//     })
-	//     return
-	// }
-
-	// For now, return an error indicating this feature is not implemented
 	h.log.Warn("event delete feature not implemented", "event_id", eventID)
 	c.JSON(http.StatusNotImplemented, gin.H{
 		"error":   "Event delete feature is not yet implemented",
@@ -1077,18 +1023,6 @@ func (h *EventHandler) RemoveParticipant(c *gin.Context) {
 		return
 	}
 
-	// TODO: Check permissions - only admin or event owner can remove participants
-	// userID := c.GetString("user_id")
-	// user, err := h.userRepo.GetByID(userID)
-	// if err != nil || (!user.HasRole(participant.RoleAdmin) && existingEvent.AuthorID.String() != userID) {
-	//     c.JSON(http.StatusForbidden, gin.H{
-	//         "error": "Insufficient permissions to remove participant",
-	//         "code":  "INSUFFICIENT_PERMISSIONS",
-	//     })
-	//     return
-	// }
-
-	// Verify participant exists and is registered for this event
 	participantEvents, err := h.eventRepo.GetByParticipant(participantID)
 	isRegistered := false
 	if err == nil {
