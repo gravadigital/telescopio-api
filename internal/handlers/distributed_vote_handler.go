@@ -751,10 +751,10 @@ func (h *DistributedVoteHandler) GetDistributedResults(c *gin.Context) {
 		return
 	}
 
-	// Check if event is in results stage
-	if eventObj.Stage != event.StageResult {
+	// Check if event is in voting or results stage
+	if eventObj.Stage != event.StageVoting && eventObj.Stage != event.StageResult {
 		c.JSON(http.StatusForbidden, gin.H{
-			"error":         "Distributed results are not yet available",
+			"error":         "Results can only be viewed during voting or results stage",
 			"current_stage": eventObj.Stage.String(),
 		})
 		return
@@ -780,12 +780,52 @@ func (h *DistributedVoteHandler) GetDistributedResults(c *gin.Context) {
 		return
 	}
 
-	// Save results to database
-	if err := h.resultsRepo.Create(results); err != nil {
-		// If results already exist, update them
-		if err := h.resultsRepo.Update(results); err != nil {
+	// Populate participant names for each attachment
+	participantNames := make(map[string]string)
+	for i := range results.GlobalRanking {
+		participantID := results.GlobalRanking[i].ParticipantID.String()
+
+		// Check if we already fetched this participant's name
+		if name, found := participantNames[participantID]; found {
+			results.GlobalRanking[i].ParticipantName = name
+		} else {
+			// Fetch participant info
+			participant, err := h.userRepo.GetByID(participantID)
+			if err == nil && participant != nil {
+				participantNames[participantID] = participant.Name
+				results.GlobalRanking[i].ParticipantName = participant.Name
+			}
+		}
+	}
+
+	// Also populate names in adjusted ranking
+	for i := range results.AdjustedRanking {
+		participantID := results.AdjustedRanking[i].ParticipantID.String()
+		if name, found := participantNames[participantID]; found {
+			results.AdjustedRanking[i].ParticipantName = name
+		}
+	}
+
+	// Save or update results to database (upsert)
+	// Try to get existing results first
+	existingResults, err := h.resultsRepo.GetByEventID(eventID)
+	if err != nil || existingResults == nil {
+		// No existing results, create new
+		if err := h.resultsRepo.Create(results); err != nil {
+			h.log.Error("failed to create voting results", "event_id", eventID, "error", err)
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error":   "Failed to save results",
+				"details": err.Error(),
+			})
+			return
+		}
+	} else {
+		// Results exist, update with existing ID
+		results.ID = existingResults.ID
+		if err := h.resultsRepo.Update(results); err != nil {
+			h.log.Error("failed to update voting results", "event_id", eventID, "error", err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error":   "Failed to update results",
 				"details": err.Error(),
 			})
 			return
@@ -794,22 +834,29 @@ func (h *DistributedVoteHandler) GetDistributedResults(c *gin.Context) {
 
 	// Get additional metrics
 	includeMetrics := c.Query("include_metrics") == "true"
-	response := gin.H{
-		"event_id":                  eventID,
-		"event_name":                eventObj.Name,
+
+	// Build complete response matching VotingResults structure
+	resultData := gin.H{
+		"id":                        results.ID.String(),
+		"event_id":                  results.EventID.String(),
 		"global_ranking":            results.GlobalRanking,
 		"adjusted_ranking":          results.AdjustedRanking,
+		"participant_qualities":     results.ParticipantQualities,
 		"total_participants":        results.TotalParticipants,
+		"total_votes":               results.TotalVotes,
 		"attachments_per_evaluator": results.AttachmentsPerEvaluator,
 		"calculated_at":             results.CalculatedAt,
+		"updated_at":                results.UpdatedAt,
 	}
 
 	if includeMetrics {
-		response["participant_qualities"] = results.ParticipantQualities
-		response["configuration"] = config
+		resultData["configuration"] = config
 	}
 
-	c.JSON(http.StatusOK, response)
+	// Wrap in {data: ...} structure for frontend consistency
+	c.JSON(http.StatusOK, gin.H{
+		"data": resultData,
+	})
 }
 
 // GetVotingStatistics handles GET /api/events/{event_id}/voting-statistics
@@ -827,7 +874,14 @@ func (h *DistributedVoteHandler) GetVotingStatistics(c *gin.Context) {
 		return
 	}
 
-	// Calculate statistics
+	// Get assignments to calculate accurate completion statistics
+	assignments, err := h.voteRepo.GetAssignmentsByEventID(eventID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get assignments"})
+		return
+	}
+
+	// Calculate comprehensive statistics
 	totalVotes := len(votes)
 	participantVotes := make(map[uuid.UUID]int)
 	attachmentVotes := make(map[uuid.UUID]int)
@@ -837,21 +891,65 @@ func (h *DistributedVoteHandler) GetVotingStatistics(c *gin.Context) {
 		attachmentVotes[vote.AttachmentID]++
 	}
 
-	completedParticipants := 0
-	for _, count := range participantVotes {
-		if count > 0 { // In real implementation, check if assignment is complete
-			completedParticipants++
+	// Count completed assignments
+	totalAssignments := len(assignments)
+	completedAssignments := 0
+	qualitySum := 0.0
+	goodQualityCount := 0
+	badQualityCount := 0
+
+	for _, assignment := range assignments {
+		if assignment.IsCompleted {
+			completedAssignments++
+
+			// Include quality metrics if available
+			if assignment.QualityScore != nil {
+				qualitySum += *assignment.QualityScore
+				if *assignment.QualityScore >= 0.7 { // Good quality threshold
+					goodQualityCount++
+				} else if *assignment.QualityScore <= 0.3 { // Bad quality threshold
+					badQualityCount++
+				}
+			}
 		}
 	}
 
+	// Calculate rates
+	completionRate := 0.0
+	if totalAssignments > 0 {
+		completionRate = float64(completedAssignments) / float64(totalAssignments)
+	}
+
+	averageQuality := 0.0
+	if completedAssignments > 0 {
+		averageQuality = qualitySum / float64(completedAssignments)
+	}
+
+	// Wrap response in {data: ...} for frontend consistency
 	c.JSON(http.StatusOK, gin.H{
-		"event_id":               eventID,
-		"total_votes":            totalVotes,
-		"completed_participants": completedParticipants,
-		"total_participants":     len(participantVotes),
-		"attachments_with_votes": len(attachmentVotes),
-		"participation_rate":     float64(completedParticipants) / float64(len(participantVotes)),
+		"data": gin.H{
+			"event_id":                       eventID,
+			"total_votes":                    totalVotes,
+			"total_assignments":              totalAssignments,
+			"completed_assignments":          completedAssignments,
+			"completion_rate":                completionRate,
+			"attachments_with_votes":         len(attachmentVotes),
+			"unique_voters":                  len(participantVotes),
+			"average_quality_score":          averageQuality,
+			"participants_with_good_quality": goodQualityCount,
+			"participants_with_bad_quality":  badQualityCount,
+			"participant_voting_status":      participantVotingStatus(assignments),
+		},
 	})
+}
+
+// Helper function to get participant voting status
+func participantVotingStatus(assignments []*vote.Assignment) map[string]bool {
+	status := make(map[string]bool)
+	for _, assignment := range assignments {
+		status[assignment.ParticipantID.String()] = assignment.IsCompleted
+	}
+	return status
 }
 
 // GetVotingConfiguration handles GET /api/events/{event_id}/voting-config

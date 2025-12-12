@@ -47,10 +47,10 @@ func (r *PostgresVotingResultsRepository) GetByEventID(eventID string) (*vote.Vo
 	}
 
 	var results vote.VotingResults
-	if err := r.db.Preload("Event").Where("event_id = ?", eventUUID).First(&results).Error; err != nil {
+	if err := r.db.Where("event_id = ?", eventUUID).First(&results).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			r.log.Debug("voting results not found", "event_id", eventID)
-			return nil, errors.New("voting results not found")
+			return nil, nil // Return nil, nil instead of error when not found
 		}
 		r.log.Error("failed to retrieve voting results", "event_id", eventID, "error", err)
 		return nil, err
@@ -70,7 +70,7 @@ func (r *PostgresVotingResultsRepository) GetByID(id string) (*vote.VotingResult
 	}
 
 	var results vote.VotingResults
-	if err := r.db.Preload("Event").Where("id = ?", resultsID).First(&results).Error; err != nil {
+	if err := r.db.Where("id = ?", resultsID).First(&results).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			r.log.Debug("voting results not found", "results_id", id)
 			return nil, errors.New("voting results not found")
