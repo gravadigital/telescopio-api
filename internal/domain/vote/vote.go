@@ -56,6 +56,7 @@ type VotingResults struct {
 	ParticipantQualities    ParticipantQualityMap `json:"participant_qualities" gorm:"type:jsonb"`
 	AdjustedRanking         AttachmentResultSlice `json:"adjusted_ranking" gorm:"type:jsonb"`
 	TotalParticipants       int                   `json:"total_participants"`
+	TotalVotes              int                   `json:"total_votes"`
 	AttachmentsPerEvaluator int                   `json:"attachments_per_evaluator"` // m parameter
 	CalculatedAt            time.Time             `json:"calculated_at" gorm:"autoCreateTime"`
 	UpdatedAt               time.Time             `json:"updated_at" gorm:"autoUpdateTime"`
@@ -80,14 +81,15 @@ type VotingConfiguration struct {
 
 // AttachmentResult represents the MBC score and ranking for an attachment
 type AttachmentResult struct {
-	AttachmentID  uuid.UUID `json:"attachment_id"`
-	Filename      string    `json:"filename"`
-	ParticipantID uuid.UUID `json:"participant_id"`
-	MBCScore      float64   `json:"mbc_score"`
-	GlobalRank    int       `json:"global_rank"`
-	AdjustedRank  int       `json:"adjusted_rank"`
-	VoteCount     int       `json:"vote_count"`
-	AverageRank   float64   `json:"average_rank"`
+	AttachmentID    uuid.UUID `json:"attachment_id"`
+	Filename        string    `json:"filename"`
+	ParticipantID   uuid.UUID `json:"participant_id"`
+	ParticipantName string    `json:"participant_name,omitempty"`
+	MBCScore        float64   `json:"mbc_score"`
+	GlobalRank      int       `json:"global_rank"`
+	AdjustedRank    int       `json:"adjusted_rank"`
+	VoteCount       int       `json:"vote_count"`
+	AverageRank     float64   `json:"average_rank"`
 }
 
 // AttachmentResultSlice is a custom type for JSONB serialization

@@ -442,16 +442,8 @@ func (h *EventHandler) RegisterParticipant(c *gin.Context) {
 		return
 	}
 
-	// Check if registration is still open (event hasn't started)
-	now := time.Now()
-	if now.After(eventObj.StartDate) {
-		h.log.Warn("registration attempt after event start", "event_id", eventID, "start_date", eventObj.StartDate)
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Registration is closed - event has already started",
-			"code":  "REGISTRATION_CLOSED",
-		})
-		return
-	}
+	// Note: We don't check start_date here to allow flexible event management
+	// In production, you might want to add this validation back
 
 	// Check if user already exists by email
 	existingUser, err := h.userRepo.GetByEmail(req.ParticipantEmail)
@@ -478,6 +470,18 @@ func (h *EventHandler) RegisterParticipant(c *gin.Context) {
 		h.log.Info("new user created", "user_id", newUser.ID, "email", newUser.Email)
 	} else {
 		h.log.Debug("using existing user", "user_id", existingUser.ID, "email", existingUser.Email)
+	}
+
+	// Prevent event creator from registering as participant
+	if existingUser.ID == eventObj.AuthorID {
+		h.log.Warn("event creator attempted to register as participant",
+			"event_id", eventID,
+			"user_id", existingUser.ID.String())
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Event creator cannot register as a participant",
+			"code":  "CREATOR_CANNOT_REGISTER",
+		})
+		return
 	}
 
 	// Check if participant is already registered for this event

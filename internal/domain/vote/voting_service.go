@@ -104,9 +104,22 @@ func (vs *VotingService) GenerateAssignments(eventID uuid.UUID, participants []u
 
 // CalculateModifiedBordaCount implements the MBC formula
 func (vs *VotingService) CalculateModifiedBordaCount(eventID uuid.UUID, config *VotingConfiguration) (*VotingResults, error) {
+	// Validate configuration parameters
+	if config == nil {
+		return nil, errors.New("voting configuration is required")
+	}
+
+	if config.AttachmentsPerEvaluator < 2 {
+		return nil, fmt.Errorf("invalid configuration: attachments_per_evaluator must be at least 2, got %d", config.AttachmentsPerEvaluator)
+	}
+
 	votes, err := vs.voteRepo.GetByEventID(eventID.String())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get votes: %w", err)
+	}
+
+	if len(votes) == 0 {
+		return nil, errors.New("no votes found for this event")
 	}
 
 	attachments, err := vs.attachmentRepo.GetByEventID(eventID.String())
@@ -114,7 +127,16 @@ func (vs *VotingService) CalculateModifiedBordaCount(eventID uuid.UUID, config *
 		return nil, fmt.Errorf("failed to get attachments: %w", err)
 	}
 
+	if len(attachments) == 0 {
+		return nil, errors.New("no attachments found for this event")
+	}
+
 	m := config.AttachmentsPerEvaluator
+
+	// Safety check to prevent division by zero
+	if m < 2 {
+		return nil, fmt.Errorf("attachments per evaluator must be at least 2, got %d", m)
+	}
 
 	votesByAttachment := make(map[uuid.UUID][]*Vote)
 	for _, vote := range votes {
@@ -151,17 +173,27 @@ func (vs *VotingService) CalculateModifiedBordaCount(eventID uuid.UUID, config *
 		}
 
 		results = append(results, AttachmentResult{
-			AttachmentID:  attachment.GetID(),
-			Filename:      attachment.GetOriginalName(),
-			ParticipantID: attachment.GetParticipantID(),
-			MBCScore:      mbcScore,
-			VoteCount:     voteCount,
-			AverageRank:   averageRank,
+			AttachmentID:    attachment.GetID(),
+			Filename:        attachment.GetOriginalName(),
+			ParticipantID:   attachment.GetParticipantID(),
+			ParticipantName: "", // Will be populated later
+			MBCScore:        mbcScore,
+			VoteCount:       voteCount,
+			AverageRank:     averageRank,
 		})
 	}
 
 	// Sort by MBC score (highest first) to create global ranking G
+	// In case of ties, use vote count as tiebreaker for deterministic ordering
 	sort.Slice(results, func(i, j int) bool {
+		if results[i].MBCScore == results[j].MBCScore {
+			// More votes wins in case of tie
+			if results[i].VoteCount == results[j].VoteCount {
+				// If still tied, use attachment ID for deterministic order
+				return results[i].AttachmentID.String() < results[j].AttachmentID.String()
+			}
+			return results[i].VoteCount > results[j].VoteCount
+		}
 		return results[i].MBCScore > results[j].MBCScore
 	})
 
@@ -175,6 +207,12 @@ func (vs *VotingService) CalculateModifiedBordaCount(eventID uuid.UUID, config *
 		return nil, fmt.Errorf("failed to calculate participant qualities: %w", err)
 	}
 
+	// Count total votes
+	totalVotes := 0
+	for _, result := range results {
+		totalVotes += result.VoteCount
+	}
+
 	// Apply incentive system to create adjusted ranking G'
 	adjustedResults := vs.applyIncentiveSystem(results, participantQualities, config)
 
@@ -186,6 +224,7 @@ func (vs *VotingService) CalculateModifiedBordaCount(eventID uuid.UUID, config *
 		ParticipantQualities:    participantQualities,
 		AdjustedRanking:         adjustedResults,
 		TotalParticipants:       len(participantQualities),
+		TotalVotes:              totalVotes,
 		AttachmentsPerEvaluator: m,
 		CalculatedAt:            time.Now(),
 	}
@@ -208,12 +247,19 @@ func (vs *VotingService) calculateParticipantQualities(eventID uuid.UUID, global
 	qualities := make(map[string]float64)
 
 	for _, assignment := range assignments {
+		// Include all participants, even if not completed
+		// Incomplete assignments get quality score of 0
+		participantID := assignment.ParticipantID.String()
+
 		if !assignment.IsCompleted {
+			qualities[participantID] = 0.0
 			continue
 		}
 
-		participantVotes, err := vs.voteRepo.GetByVoterID(assignment.ParticipantID.String())
+		participantVotes, err := vs.voteRepo.GetByVoterID(participantID)
 		if err != nil {
+			// If we can't get votes, assume quality of 0
+			qualities[participantID] = 0.0
 			continue
 		}
 
@@ -224,19 +270,36 @@ func (vs *VotingService) calculateParticipantQualities(eventID uuid.UUID, global
 			}
 		}
 
-		relativeRanks := vs.calculateRelativeRanks(assignment.GetAttachmentUUIDs(), globalRankMap) // Calculate quality score
+		// Skip if no votes found
+		if len(eventVotes) == 0 {
+			qualities[participantID] = 0.0
+			continue
+		}
+
+		relativeRanks := vs.calculateRelativeRanks(assignment.GetAttachmentUUIDs(), globalRankMap)
+
+		// Calculate quality score
 		var deviationSum float64
+		validVotes := 0
 		for _, vote := range eventVotes {
 			relativeRank, exists := relativeRanks[vote.AttachmentID]
 			if exists {
 				deviation := math.Abs(float64(vote.RankPosition - relativeRank))
 				deviationSum += deviation
+				validVotes++
 			}
+		}
+
+		// If no valid votes, quality is 0
+		if validVotes == 0 {
+			qualities[participantID] = 0.0
+			continue
 		}
 
 		// Q_i = 1 - (2/(m(m-1))) * Σ|R_i(f_j) - RelativeRank_G(f_j, A(p_i))|
 		quality := 1.0 - (2.0/(float64(m)*float64(m-1)))*deviationSum
 
+		// Clamp quality to [0, 1]
 		if quality < 0 {
 			quality = 0
 		}
@@ -244,7 +307,7 @@ func (vs *VotingService) calculateParticipantQualities(eventID uuid.UUID, global
 			quality = 1
 		}
 
-		qualities[assignment.ParticipantID.String()] = quality
+		qualities[participantID] = quality
 	}
 
 	return qualities, nil
@@ -308,9 +371,19 @@ func (vs *VotingService) applyIncentiveSystem(results []AttachmentResult, qualit
 		adjustedResults[i].AdjustedRank = adjustedRank
 	}
 
+	// Sort by adjusted rank
 	sort.Slice(adjustedResults, func(i, j int) bool {
+		if adjustedResults[i].AdjustedRank == adjustedResults[j].AdjustedRank {
+			// Tiebreaker: use MBC score
+			return adjustedResults[i].MBCScore > adjustedResults[j].MBCScore
+		}
 		return adjustedResults[i].AdjustedRank < adjustedResults[j].AdjustedRank
 	})
+
+	// Reassign consecutive ranks after sorting
+	for i := range adjustedResults {
+		adjustedResults[i].AdjustedRank = i + 1
+	}
 
 	return adjustedResults
 }
