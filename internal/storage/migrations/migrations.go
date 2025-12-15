@@ -60,6 +60,12 @@ func GetMigrations() []Migration {
 			Up:   migration007Up,
 			Down: migration007Down,
 		},
+		{
+			ID:   "008",
+			Name: "fix_assignment_constraints",
+			Up:   migration008Up,
+			Down: migration008Down,
+		},
 	}
 }
 
