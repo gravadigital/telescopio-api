@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
@@ -192,6 +193,55 @@ func (h *DistributedVoteHandler) CreateVotingConfiguration(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "At least 1 attachment is required for voting configuration",
 			"code":  "NO_ATTACHMENTS",
+		})
+		return
+	}
+
+	// Validate minimum attachments for meaningful voting (at least 2)
+	if len(attachments) < 2 {
+		h.log.Warn("insufficient attachments for voting", "event_id", eventID, "attachment_count", len(attachments))
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":            "At least 2 attachments are required for meaningful voting (ranking requires comparison)",
+			"code":             "INSUFFICIENT_ATTACHMENTS",
+			"current_count":    len(attachments),
+			"required_minimum": 2,
+		})
+		return
+	}
+
+	// Validate that m doesn't exceed available attachments
+	if req.AttachmentsPerEvaluator > len(attachments) {
+		h.log.Warn("attachments_per_evaluator exceeds total attachments",
+			"event_id", eventID,
+			"requested_m", req.AttachmentsPerEvaluator,
+			"total_attachments", len(attachments))
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":                    "attachments_per_evaluator cannot exceed total number of attachments",
+			"code":                     "M_EXCEEDS_ATTACHMENTS",
+			"attachments_per_evaluator": req.AttachmentsPerEvaluator,
+			"total_attachments":        len(attachments),
+		})
+		return
+	}
+
+	// IMPORTANT: Validate considering conflict of interest (participants can't evaluate their own files)
+	// Maximum evaluable attachments per participant = total_attachments - 1 (excluding their own)
+	maxEvaluablePerParticipant := len(attachments) - 1
+	if req.AttachmentsPerEvaluator > maxEvaluablePerParticipant {
+		h.log.Warn("attachments_per_evaluator exceeds maximum evaluable (excluding own submissions)",
+			"event_id", eventID,
+			"requested_m", req.AttachmentsPerEvaluator,
+			"max_evaluable", maxEvaluablePerParticipant,
+			"total_attachments", len(attachments))
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "attachments_per_evaluator cannot exceed maximum evaluable attachments per participant",
+			"code":  "M_EXCEEDS_EVALUABLE",
+			"details": "Participants cannot evaluate their own submissions (conflict of interest). " +
+				"With " + fmt.Sprintf("%d", len(attachments)) + " total attachments, " +
+				"each participant can evaluate at most " + fmt.Sprintf("%d", maxEvaluablePerParticipant) + " files.",
+			"attachments_per_evaluator":   req.AttachmentsPerEvaluator,
+			"max_evaluable_per_participant": maxEvaluablePerParticipant,
+			"total_attachments":            len(attachments),
 		})
 		return
 	}
@@ -1015,12 +1065,25 @@ func (h *DistributedVoteHandler) UpdateVotingConfiguration(c *gin.Context) {
 		return
 	}
 
-	// Only allow updates in registration stage
-	if eventObj.Stage != event.StageRegistration {
+	// Allow updates during attachment_upload or voting stages (before assignments are generated)
+	// Same stages allowed for creation
+	if eventObj.Stage != event.StageSubmission && eventObj.Stage != event.StageVoting {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":         "Voting configuration can only be updated during registration stage",
+			"error":         "Voting configuration can only be updated during attachment_upload or voting stages",
 			"code":          "INVALID_EVENT_STAGE",
 			"current_stage": eventObj.Stage.String(),
+		})
+		return
+	}
+
+	// Check if assignments have already been generated
+	existingAssignments, err := h.voteRepo.GetAssignmentsByEventID(eventID)
+	if err == nil && len(existingAssignments) > 0 {
+		h.log.Warn("cannot update config, assignments already generated", "event_id", eventID)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Cannot update voting configuration after assignments have been generated",
+			"code":  "ASSIGNMENTS_EXIST",
+			"details": "Delete existing assignments before updating configuration",
 		})
 		return
 	}
@@ -1114,7 +1177,7 @@ func (h *DistributedVoteHandler) DeleteVotingConfiguration(c *gin.Context) {
 		return
 	}
 
-	// Check if event exists and is still configurable
+	// Check if event exists
 	eventObj, err := h.eventRepo.GetByID(eventID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
@@ -1124,12 +1187,40 @@ func (h *DistributedVoteHandler) DeleteVotingConfiguration(c *gin.Context) {
 		return
 	}
 
-	// Only allow deletion in registration stage
-	if eventObj.Stage != event.StageRegistration {
+	// Check if assignments have been generated - cannot delete if they exist
+	existingAssignments, err := h.voteRepo.GetAssignmentsByEventID(eventID)
+	if err == nil && len(existingAssignments) > 0 {
+		h.log.Warn("cannot delete config, assignments already generated",
+			"event_id", eventID,
+			"assignments_count", len(existingAssignments))
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":         "Voting configuration can only be deleted during registration stage",
+			"error": "Cannot delete voting configuration after assignments have been generated",
+			"code":  "ASSIGNMENTS_EXIST",
+			"details": fmt.Sprintf("Found %d existing assignments. Delete assignments first if you need to reconfigure.", len(existingAssignments)),
+			"assignments_count": len(existingAssignments),
+		})
+		return
+	}
+
+	// Allow deletion in attachment_upload or voting stages (before assignments are generated)
+	// More flexible than before - was only registration stage
+	if eventObj.Stage != event.StageSubmission && eventObj.Stage != event.StageVoting {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":         "Voting configuration can only be deleted during attachment_upload or voting stages (before assignments are generated)",
 			"code":          "INVALID_EVENT_STAGE",
 			"current_stage": eventObj.Stage.String(),
+			"allowed_stages": []string{"attachment_upload", "voting"},
+		})
+		return
+	}
+
+	// Check if configuration exists
+	existingConfig, err := h.configRepo.GetByEventID(eventID)
+	if err != nil || existingConfig == nil {
+		h.log.Warn("voting configuration not found for deletion", "event_id", eventID)
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "Voting configuration not found for this event",
+			"code":  "CONFIG_NOT_FOUND",
 		})
 		return
 	}
@@ -1144,11 +1235,18 @@ func (h *DistributedVoteHandler) DeleteVotingConfiguration(c *gin.Context) {
 		return
 	}
 
-	h.log.Info("voting configuration deleted successfully", "event_id", eventID)
+	h.log.Info("voting configuration deleted successfully",
+		"event_id", eventID,
+		"config_id", existingConfig.ID,
+		"stage", eventObj.Stage.String())
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Voting configuration deleted successfully",
+		"message": "Voting configuration deleted successfully. You can now create a new configuration.",
 		"code":    "CONFIG_DELETED",
+		"deleted_config": gin.H{
+			"id":                        existingConfig.ID.String(),
+			"attachments_per_evaluator": existingConfig.AttachmentsPerEvaluator,
+		},
 	})
 }
 

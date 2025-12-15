@@ -32,11 +32,24 @@ func (vs *VotingService) GenerateAssignments(eventID uuid.UUID, participants []u
 	k := len(attachments)
 	m := config.AttachmentsPerEvaluator
 
-	if m > k {
-		return nil, errors.New("attachments per evaluator (m) cannot exceed total attachments (k)")
+	// When there are conflict of interest constraints (participants can't evaluate own files),
+	// the maximum possible m is k-1, not k
+	maxPossibleM := k
+	if k >= n {
+		// Each participant will be excluded from evaluating their own file
+		maxPossibleM = k - 1
 	}
 
+	if m > maxPossibleM {
+		return nil, fmt.Errorf("attachments per evaluator (m=%d) cannot exceed %d (conflict of interest prevents evaluating own files)", m, maxPossibleM)
+	}
+
+	// Calculate recommended M, but cap it at maxPossibleM
 	recommendedM := int(math.Ceil(2 * math.Log2(float64(k))))
+	if recommendedM > maxPossibleM {
+		recommendedM = maxPossibleM
+	}
+
 	if m < recommendedM {
 		return nil, fmt.Errorf("recommended minimum attachments per evaluator is %d for %d total attachments", recommendedM, k)
 	}
@@ -404,9 +417,19 @@ func (vs *VotingService) ValidateVotingConfiguration(config *VotingConfiguration
 	if m <= 0 {
 		return errors.New("attachments per evaluator must be positive")
 	}
-	if m > k {
-		return errors.New("attachments per evaluator cannot exceed total attachments")
+
+	// When there are conflict of interest constraints (participants can't evaluate own files),
+	// the maximum possible m is k-1, not k
+	maxPossibleM := k
+	if k >= n {
+		// Each participant will be excluded from evaluating their own file
+		maxPossibleM = k - 1
 	}
+
+	if m > maxPossibleM {
+		return fmt.Errorf("attachments per evaluator cannot exceed %d (conflict of interest prevents evaluating own files)", maxPossibleM)
+	}
+
 	if config.QualityGoodThreshold <= config.QualityBadThreshold {
 		return errors.New("good quality threshold must be higher than bad quality threshold")
 	}
@@ -414,7 +437,12 @@ func (vs *VotingService) ValidateVotingConfiguration(config *VotingConfiguration
 		return errors.New("quality thresholds must be in [0, 1] range")
 	}
 
+	// Calculate recommended M, but cap it at maxPossibleM
 	recommendedM := int(math.Ceil(2 * math.Log2(float64(k))))
+	if recommendedM > maxPossibleM {
+		recommendedM = maxPossibleM
+	}
+
 	if m < recommendedM {
 		return fmt.Errorf("recommended minimum m is %d for optimal convergence with %d attachments", recommendedM, k)
 	}

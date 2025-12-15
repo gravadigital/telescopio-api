@@ -315,7 +315,40 @@ func (h *EventHandler) UpdateEventStage(c *gin.Context) {
 
 	case event.StageVoting:
 		h.log.Debug("moving to voting stage", "event_id", eventID)
-		h.log.Warn("skipping attachment validation - attachment repository not available in EventHandler")
+
+		// Validate that there are enough attachments for voting
+		attachments, err := h.attachmentRepo.GetByEventID(eventID)
+		if err != nil {
+			h.log.Error("failed to get attachments", "event_id", eventID, "error", err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "Failed to validate attachments",
+				"code":  "ATTACHMENTS_ERROR",
+			})
+			return
+		}
+
+		if len(attachments) == 0 {
+			h.log.Warn("attempting to move to voting stage without attachments", "event_id", eventID)
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "Cannot move to voting stage without attachments. Participants must upload their proposals first.",
+				"code":  "NO_ATTACHMENTS",
+			})
+			return
+		}
+
+		// Validate minimum attachments for meaningful voting (at least 2)
+		if len(attachments) < 2 {
+			h.log.Warn("insufficient attachments for voting", "event_id", eventID, "attachment_count", len(attachments))
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":            "At least 2 attachments are required for meaningful voting",
+				"code":             "INSUFFICIENT_ATTACHMENTS",
+				"current_count":    len(attachments),
+				"required_minimum": 2,
+			})
+			return
+		}
+
+		h.log.Info("voting stage validation passed", "event_id", eventID, "attachments", len(attachments))
 
 	case event.StageResult:
 		h.log.Debug("moving to results stage", "event_id", eventID)
