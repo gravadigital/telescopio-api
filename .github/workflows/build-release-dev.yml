@@ -1,0 +1,30 @@
+name: Build and Push API Dev Image
+on:
+  push:
+    branches:
+      - dev
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - name: Login to Grava Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.EXTERNAL_PRIVATE_REGISTRY }}
+          username: ${{ secrets.EXTERNAL_PRIVATE_REGISTRY_USERNAME }}
+          password: ${{ secrets.EXTERNAL_PRIVATE_REGISTRY_PASSWORD }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          file: Dockerfile
+          tags: ${{ secrets.EXTERNAL_PRIVATE_REGISTRY }}/telescopio/api:${{ github.ref_name }}
+          cache-from: type=registry,ref=${{ secrets.EXTERNAL_PRIVATE_REGISTRY }}/telescopio/api:${{ github.ref_name }}
+          cache-to: type=registry,ref=${{ secrets.EXTERNAL_PRIVATE_REGISTRY }}/telescopio/api:buildcache,mode=max
