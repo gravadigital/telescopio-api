@@ -25,4 +25,4 @@ jobs:
           context: .
           push: true
           file: Dockerfile
-          tags: ${{ secrets.EXTERNAL_PRIVATE_REGISTRY }}/telescopio/api:${{ github.ref_name }}
+          tags: ${{ secrets.EXTERNAL_PRIVATE_REGISTRY }}/telescope/api:${{ github.ref_name }}
