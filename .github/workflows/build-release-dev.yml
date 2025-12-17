@@ -26,5 +26,3 @@ jobs:
           push: true
           file: Dockerfile
           tags: ${{ secrets.EXTERNAL_PRIVATE_REGISTRY }}/telescopio/api:${{ github.ref_name }}
-          cache-from: type=registry,ref=${{ secrets.EXTERNAL_PRIVATE_REGISTRY }}/telescopio/api:${{ github.ref_name }}
-          cache-to: type=registry,ref=${{ secrets.EXTERNAL_PRIVATE_REGISTRY }}/telescopio/api:buildcache,mode=max
