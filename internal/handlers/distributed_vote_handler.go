@@ -767,9 +767,21 @@ func (h *DistributedVoteHandler) SubmitRankingVotes(c *gin.Context) {
 		now := time.Now()
 		assignment.CompletedAt = &now
 		if err := h.voteRepo.UpdateAssignment(assignment); err != nil {
-			// Log error but don't fail the request - just ignore logging for now
-			// TODO: Improve error handling
+			h.log.Error("failed to mark assignment as completed",
+				"event_id", eventID,
+				"participant_id", participantID,
+				"assignment_id", assignment.ID,
+				"error", err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error":   "Failed to mark assignment as completed",
+				"details": err.Error(),
+			})
+			return
 		}
+		h.log.Info("assignment marked as completed",
+			"event_id", eventID,
+			"participant_id", participantID,
+			"assignment_id", assignment.ID)
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
@@ -777,6 +789,7 @@ func (h *DistributedVoteHandler) SubmitRankingVotes(c *gin.Context) {
 		"event_id":       eventID,
 		"participant_id": participantID,
 		"votes_count":    len(votes),
+		"is_completed":   assignment.IsCompleted,
 	})
 }
 
