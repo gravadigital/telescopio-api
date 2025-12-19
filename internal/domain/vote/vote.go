@@ -4,12 +4,67 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/lib/pq"
 	"gorm.io/gorm"
 )
+
+// UUIDArray is a custom type for PostgreSQL UUID arrays
+type UUIDArray []string
+
+// Value implements the driver.Valuer interface
+func (a UUIDArray) Value() (driver.Value, error) {
+	if a == nil {
+		return nil, nil
+	}
+	// Convert to PostgreSQL array format with UUID casting
+	var sb strings.Builder
+	sb.WriteString("{")
+	for i, id := range a {
+		if i > 0 {
+			sb.WriteString(",")
+		}
+		sb.WriteString(id)
+	}
+	sb.WriteString("}")
+	return sb.String(), nil
+}
+
+// Scan implements the sql.Scanner interface
+func (a *UUIDArray) Scan(value interface{}) error {
+	if value == nil {
+		*a = nil
+		return nil
+	}
+	
+	switch v := value.(type) {
+	case []byte:
+		return a.scanBytes(v)
+	case string:
+		return a.scanBytes([]byte(v))
+	default:
+		return fmt.Errorf("cannot scan type %T into UUIDArray", value)
+	}
+}
+
+func (a *UUIDArray) scanBytes(src []byte) error {
+	str := string(src)
+	// Remove curly braces
+	str = strings.Trim(str, "{}")
+	if str == "" {
+		*a = UUIDArray{}
+		return nil
+	}
+	// Split by comma
+	parts := strings.Split(str, ",")
+	*a = make(UUIDArray, len(parts))
+	for i, part := range parts {
+		(*a)[i] = strings.TrimSpace(part)
+	}
+	return nil
+}
 
 // Vote represents a ranking vote for an attachment by a participant
 type Vote struct {
@@ -31,12 +86,12 @@ type Vote struct {
 
 // Assignment represents the distributed assignment of attachments to evaluators
 type Assignment struct {
-	ID                  uuid.UUID      `json:"id" gorm:"type:uuid;primaryKey;default:uuid_generate_v4()"`
-	EventID             uuid.UUID      `json:"event_id" gorm:"type:uuid;not null"`
-	ParticipantID       uuid.UUID      `json:"participant_id" gorm:"type:uuid;not null"`
-	AttachmentIDs       pq.StringArray `json:"attachment_ids" gorm:"type:uuid[]"` // Array of UUIDs
-	AssignmentRound     int            `json:"assignment_round" gorm:"default:1"`
-	IsCompleted         bool           `json:"is_completed" gorm:"default:false"`
+	ID                  uuid.UUID `json:"id" gorm:"type:uuid;primaryKey;default:uuid_generate_v4()"`
+	EventID             uuid.UUID `json:"event_id" gorm:"type:uuid;not null"`
+	ParticipantID       uuid.UUID `json:"participant_id" gorm:"type:uuid;not null"`
+	AttachmentIDs       UUIDArray `json:"attachment_ids" gorm:"type:uuid[]"` // Array of UUIDs
+	AssignmentRound     int       `json:"assignment_round" gorm:"default:1"`
+	IsCompleted         bool      `json:"is_completed" gorm:"default:false"`
 	CompletedAt         *time.Time     `json:"completed_at"`
 	QualityScore        *float64       `json:"quality_score" gorm:"type:decimal(5,4)"` // Q_i score
 	ExpertiseMatchScore *float64       `json:"expertise_match_score" gorm:"type:decimal(3,2)"`
@@ -226,7 +281,7 @@ func (v *Vote) Validate() error {
 }
 
 func NewAssignment(eventID, participantID uuid.UUID, attachmentIDs []uuid.UUID) *Assignment {
-	stringIDs := make(pq.StringArray, len(attachmentIDs))
+	stringIDs := make(UUIDArray, len(attachmentIDs))
 	for i, id := range attachmentIDs {
 		stringIDs[i] = id.String()
 	}
