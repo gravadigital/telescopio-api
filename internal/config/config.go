@@ -19,8 +19,9 @@ type Config struct {
 	}
 
 	Server struct {
-		Port    string
-		GinMode string
+		Port        string
+		GinMode     string
+		FrontendURL string
 	}
 
 	Upload struct {
@@ -50,6 +51,7 @@ func Load() *Config {
 
 	config.Server.Port = getEnv("PORT", "8080")
 	config.Server.GinMode = getEnv("GIN_MODE", "debug")
+	config.Server.FrontendURL = getEnv("FRONTEND_URL", "http://localhost:3000")
 
 	config.Upload.Dir = getEnv("UPLOADS_DIR", "./uploads")
 	config.Upload.MaxFileSize = getEnvAsInt64("MAX_FILE_SIZE", 10485760)

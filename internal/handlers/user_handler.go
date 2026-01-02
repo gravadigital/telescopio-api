@@ -89,7 +89,7 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 		Name:     req.Name,
 		LastName: req.LastName,
 		Email:    req.Email,
-		Role:     participant.RoleOrganizer, // Changed from RoleParticipant to allow event creation
+		Role:     participant.RoleParticipant, // All users are participants by default
 	}
 
 	err = h.userRepo.Create(user)

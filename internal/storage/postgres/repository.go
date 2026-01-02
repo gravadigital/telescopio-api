@@ -53,7 +53,11 @@ type EventRepository interface {
 	Delete(id string) error
 	UpdateStage(eventID string, stage event.Stage) error
 	AddParticipant(eventID, userID string) error
+	AddParticipantWithRole(eventID, userID string, role event.EventParticipantRole) error
 	RemoveParticipant(eventID, userID string) error
+	GetParticipantRole(eventID, userID string) (*event.EventParticipantRole, error)
+	IsEventCreator(eventID, userID string) (bool, error)
+	IsEventParticipant(eventID, userID string) (bool, error)
 }
 
 // UserRepository define los métodos para interactuar con los usuarios en la DB.

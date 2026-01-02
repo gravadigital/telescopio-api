@@ -72,6 +72,18 @@ func GetMigrations() []Migration {
 			Up:   migration009Up,
 			Down: migration009Down,
 		},
+		{
+			ID:   "010",
+			Name: "event_participant_roles_and_shareable_links",
+			Up:   migration010Up,
+			Down: migration010Down,
+		},
+		{
+			ID:   "011",
+			Name: "shareable_link_constraints",
+			Up:   migration011Up,
+			Down: migration011Down,
+		},
 	}
 }
 

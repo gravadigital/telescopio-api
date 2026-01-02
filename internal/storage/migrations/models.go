@@ -176,10 +176,10 @@ func (VotingConfiguration) TableName() string {
 
 // Assignment represents the distributed assignment function A: P → 2^F
 type Assignment struct {
-	ID                  uuid.UUID `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
-	EventID             uuid.UUID `gorm:"type:uuid;not null" json:"event_id"`
-	ParticipantID       uuid.UUID `gorm:"type:uuid;not null" json:"participant_id"`
-	AttachmentIDs       pq.StringArray `gorm:"type:text[]" json:"attachment_ids"` // Array of UUID strings
+	ID                  uuid.UUID      `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
+	EventID             uuid.UUID      `gorm:"type:uuid;not null" json:"event_id"`
+	ParticipantID       uuid.UUID      `gorm:"type:uuid;not null" json:"participant_id"`
+	AttachmentIDs       pq.StringArray `gorm:"type:uuid[]" json:"attachment_ids"` // Array of UUIDs
 	AssignmentRound     int            `gorm:"default:1" json:"assignment_round"`
 	IsCompleted         bool           `gorm:"default:false" json:"is_completed"`
 	CompletedAt         *time.Time     `json:"completed_at"`
