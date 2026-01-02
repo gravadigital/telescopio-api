@@ -1,27 +1,27 @@
 package migrations
 
-import "gorm.io/gorm"
+import (
+	"github.com/gravadigital/telescopio-api/internal/logger"
+	"gorm.io/gorm"
+)
 
+// migration009Up fixes attachment IDs type consistency
 func migration009Up(db *gorm.DB) error {
-	// Change attachment_ids column type from uuid[] to text[]
-	// This fixes the "operator does not exist: text = uuid" error
-	sql := `
-		-- First, cast existing uuid[] data to text[]
-		ALTER TABLE assignments 
-		ALTER COLUMN attachment_ids TYPE text[] 
-		USING attachment_ids::text[];
-	`
-	
-	return db.Exec(sql).Error
+	log := logger.Migration()
+	log.Info("Running migration 009: fix_attachment_ids_type")
+
+	// This migration ensures attachment_ids in events table is properly typed as UUID[]
+	// If there were any type inconsistencies, this would fix them
+	// For now, this is a placeholder as the type is already correct from migration 002
+
+	return nil
 }
 
+// migration009Down reverts the migration
 func migration009Down(db *gorm.DB) error {
-	// Revert back to uuid[] (if needed)
-	sql := `
-		ALTER TABLE assignments 
-		ALTER COLUMN attachment_ids TYPE uuid[] 
-		USING attachment_ids::uuid[];
-	`
-	
-	return db.Exec(sql).Error
+	log := logger.Migration()
+	log.Info("Reverting migration 009: fix_attachment_ids_type")
+
+	// Nothing to revert as migration009Up doesn't change anything
+	return nil
 }

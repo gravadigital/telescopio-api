@@ -198,19 +198,27 @@ func (h *EventHandler) CreateEvent(c *gin.Context) {
 		return
 	}
 
+	// Add creator as participant with 'creator' role
+	if err := h.eventRepo.AddParticipantWithRole(newEvent.ID.String(), authorID.String(), event.RoleCreator); err != nil {
+		h.log.Error("failed to add creator as participant", "error", err, "event_id", newEvent.ID)
+		// Don't fail the request - event was created successfully
+		// Creator might need to be added manually later
+	}
+
 	h.log.Info("event created successfully", "event_id", newEvent.ID, "event_name", newEvent.Name, "author_id", authorID)
 
 	c.JSON(http.StatusCreated, gin.H{
 		"event": gin.H{
-			"id":          newEvent.ID.String(),
-			"name":        newEvent.Name,
-			"description": newEvent.Description,
-			"start_date":  newEvent.StartDate.Format("2006-01-02"),
-			"end_date":    newEvent.EndDate.Format("2006-01-02"),
-			"organizer":   newEvent.Organizer,
-			"stage":       newEvent.Stage.String(),
-			"author_id":   newEvent.AuthorID.String(),
-			"created_at":  newEvent.CreatedAt,
+			"id":             newEvent.ID.String(),
+			"name":           newEvent.Name,
+			"description":    newEvent.Description,
+			"start_date":     newEvent.StartDate.Format("2006-01-02"),
+			"end_date":       newEvent.EndDate.Format("2006-01-02"),
+			"organizer":      newEvent.Organizer,
+			"shareable_link": newEvent.ShareableLink,
+			"stage":          newEvent.Stage.String(),
+			"author_id":      newEvent.AuthorID.String(),
+			"created_at":     newEvent.CreatedAt,
 		},
 		"message": "Event created successfully",
 		"code":    "EVENT_CREATED",
@@ -538,8 +546,8 @@ func (h *EventHandler) RegisterParticipant(c *gin.Context) {
 		return
 	}
 
-	// Add participant to event
-	if err := h.eventRepo.AddParticipant(eventID, existingUser.ID.String()); err != nil {
+	// Add participant to event with 'participant' role
+	if err := h.eventRepo.AddParticipantWithRole(eventID, existingUser.ID.String(), event.RoleParticipant); err != nil {
 		h.log.Error("failed to register participant",
 			"event_id", eventID,
 			"user_id", existingUser.ID.String(),
@@ -1090,5 +1098,84 @@ func (h *EventHandler) RemoveParticipant(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Participant removed successfully",
 		"code":    "PARTICIPANT_REMOVED",
+	})
+}
+
+// GetShareableEventInfo handles GET /api/events/{event_id}/share
+// Returns metadata for social media sharing (Open Graph, Twitter Card)
+func (h *EventHandler) GetShareableEventInfo(c *gin.Context) {
+	eventID := c.Param("event_id")
+
+	h.log.Debug("retrieving shareable event info", "event_id", eventID)
+
+	// Validate UUID format
+	if _, err := uuid.Parse(eventID); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid event_id format",
+			"code":  "INVALID_EVENT_ID",
+		})
+		return
+	}
+
+	// Get the event
+	eventObj, err := h.eventRepo.GetByID(eventID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "Event not found",
+			"code":  "EVENT_NOT_FOUND",
+		})
+		return
+	}
+
+	// Build shareable URL (frontend URL + shareable_link)
+	scheme := "http"
+	if c.Request.TLS != nil {
+		scheme = "https"
+	}
+	baseURL := h.config.Server.FrontendURL
+	if baseURL == "" {
+		baseURL = scheme + "://" + c.Request.Host
+	}
+	shareURL := baseURL + eventObj.ShareableLink
+
+	// Build description excerpt (first 200 chars)
+	description := eventObj.Description
+	if len(description) > 200 {
+		description = description[:197] + "..."
+	}
+
+	// Get statistics
+	participants, _ := h.userRepo.GetEventParticipants(eventID)
+	attachments, _ := h.attachmentRepo.GetByEventID(eventID)
+
+	ogImageURL := baseURL + "/og-image.png"
+
+	c.JSON(http.StatusOK, gin.H{
+		"data": gin.H{
+			"title":          eventObj.Name,
+			"description":    description,
+			"share_url":      shareURL,
+			"shareable_link": eventObj.ShareableLink,
+			"image_url":      ogImageURL,
+			"stage":          eventObj.Stage.String(),
+			"start_date":     eventObj.StartDate.Format("2006-01-02"),
+			"end_date":       eventObj.EndDate.Format("2006-01-02"),
+			"organizer":      eventObj.Organizer,
+		},
+		"statistics": gin.H{
+			"participants_count": len(participants),
+			"attachments_count":  len(attachments),
+		},
+		"social_meta": gin.H{
+			"og_title":            eventObj.Name,
+			"og_description":      description,
+			"og_type":             "website",
+			"og_url":              shareURL,
+			"og_image":            ogImageURL,
+			"twitter_card":        "summary_large_image",
+			"twitter_title":       eventObj.Name,
+			"twitter_description": description,
+			"twitter_image":       ogImageURL,
+		},
 	})
 }

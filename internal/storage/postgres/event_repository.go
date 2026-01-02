@@ -369,3 +369,98 @@ func (r *PostgresEventRepository) GetAllPaginated(params PaginationParams) (*Pag
 
 	return result, nil
 }
+
+// AddParticipantWithRole adds a participant to an event with a specific role
+func (r *PostgresEventRepository) AddParticipantWithRole(eventID, userID string, role event.EventParticipantRole) error {
+	r.log.Debug("adding participant with role to event", "event_id", eventID, "user_id", userID, "role", role)
+
+	eventUUID, err := uuid.Parse(eventID)
+	if err != nil {
+		r.log.Error("invalid event ID format", "event_id", eventID, "error", err)
+		return errors.New("invalid event ID format")
+	}
+
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		r.log.Error("invalid user ID format", "user_id", userID, "error", err)
+		return errors.New("invalid user ID format")
+	}
+
+	// Verify event exists
+	var evt event.Event
+	if err := r.db.First(&evt, eventUUID).Error; err != nil {
+		r.log.Error("event not found for participant addition", "event_id", eventID, "error", err)
+		return errors.New("event not found")
+	}
+
+	// Verify user exists
+	var user participant.User
+	if err := r.db.First(&user, userUUID).Error; err != nil {
+		r.log.Error("user not found for participant addition", "user_id", userID, "error", err)
+		return errors.New("user not found")
+	}
+
+	// Insert with role
+	query := `
+		INSERT INTO event_participants (event_id, user_id, role, joined_at)
+		VALUES ($1, $2, $3, NOW())
+		ON CONFLICT (event_id, user_id) DO UPDATE SET role = $3
+	`
+
+	if err := r.db.Exec(query, eventUUID, userUUID, role.String()).Error; err != nil {
+		r.log.Error("failed to add participant with role to event", "event_id", eventID, "user_id", userID, "role", role, "error", err)
+		return err
+	}
+
+	r.log.Info("participant added to event with role", "event_id", eventID, "user_id", userID, "role", role)
+	return nil
+}
+
+// GetParticipantRole gets the role of a user in a specific event
+func (r *PostgresEventRepository) GetParticipantRole(eventID, userID string) (*event.EventParticipantRole, error) {
+	r.log.Debug("getting participant role", "event_id", eventID, "user_id", userID)
+
+	eventUUID, err := uuid.Parse(eventID)
+	if err != nil {
+		return nil, errors.New("invalid event ID format")
+	}
+
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		return nil, errors.New("invalid user ID format")
+	}
+
+	var roleStr string
+	query := `SELECT role FROM event_participants WHERE event_id = $1 AND user_id = $2`
+
+	if err := r.db.Raw(query, eventUUID, userUUID).Scan(&roleStr).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("participant not found in event")
+		}
+		return nil, err
+	}
+
+	role := event.EventParticipantRole(roleStr)
+	return &role, nil
+}
+
+// IsEventCreator checks if a user is the creator of an event
+func (r *PostgresEventRepository) IsEventCreator(eventID, userID string) (bool, error) {
+	role, err := r.GetParticipantRole(eventID, userID)
+	if err != nil {
+		return false, err
+	}
+	return *role == event.RoleCreator, nil
+}
+
+// IsEventParticipant checks if a user is a participant (any role) in an event
+func (r *PostgresEventRepository) IsEventParticipant(eventID, userID string) (bool, error) {
+	_, err := r.GetParticipantRole(eventID, userID)
+	if err != nil {
+		if err.Error() == "participant not found in event" {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}

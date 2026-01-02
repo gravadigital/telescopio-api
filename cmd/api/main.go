@@ -112,6 +112,7 @@ func main() {
 		{
 			eventsPublic.GET("", eventHandler.GetAllEvents)                            // List all events
 			eventsPublic.GET("/:event_id", eventHandler.GetEvent)                      // Get event details
+			eventsPublic.GET("/:event_id/share", eventHandler.GetShareableEventInfo)   // Get shareable metadata
 			eventsPublic.POST("/:event_id/register", eventHandler.RegisterParticipant) // Register for event (creates user if doesn't exist)
 		}
 
