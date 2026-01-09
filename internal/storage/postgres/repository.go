@@ -69,7 +69,7 @@ type UserRepository interface {
 	GetAllPaginated(params PaginationParams) (*PaginatedResult, error)
 	Update(user *participant.User) error
 	Delete(id string) error
-	GetEventParticipants(eventID string) ([]*participant.User, error)
+	GetEventParticipants(eventID string) ([]*participant.UserWithEventRole, error)
 	GetEventParticipantsPaginated(eventID string, params PaginationParams) (*PaginatedResult, error)
 }
 

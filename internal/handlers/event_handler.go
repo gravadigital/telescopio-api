@@ -635,7 +635,7 @@ func (h *EventHandler) GetEventParticipants(c *gin.Context) {
 			"id":         p.ID.String(),
 			"name":       p.Name,
 			"email":      p.Email,
-			"role":       p.Role.String(),
+			"role":       p.EventRole, // Use event-specific role (creator/participant)
 			"created_at": p.CreatedAt,
 		}
 	}
