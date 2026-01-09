@@ -187,3 +187,9 @@ func (u *User) HasPermission(permission string) bool {
 		return false // TODO: Define default permission behavior
 	}
 }
+
+// UserWithEventRole represents a user with their role in a specific event
+type UserWithEventRole struct {
+	User
+	EventRole string `json:"event_role"` // Role from event_participants table (creator/participant)
+}

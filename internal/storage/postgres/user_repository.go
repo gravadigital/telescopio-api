@@ -3,6 +3,7 @@ package postgres
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
@@ -256,23 +257,54 @@ func (r *PostgresUserRepository) Delete(id string) error {
 	return nil
 }
 
-func (r *PostgresUserRepository) GetEventParticipants(eventID string) ([]*participant.User, error) {
+func (r *PostgresUserRepository) GetEventParticipants(eventID string) ([]*participant.UserWithEventRole, error) {
 	eventUUID, err := uuid.Parse(eventID)
 	if err != nil {
 		r.log.Error("Invalid event ID format", "eventID", eventID, "error", err)
 		return nil, errors.New("invalid event ID format")
 	}
 
-	var users []*participant.User
-	if err := r.db.Joins("JOIN event_participants ON users.id = event_participants.user_id").
+	// Query that selects user data along with their event role
+	type userWithRole struct {
+		ID        uuid.UUID
+		Name      string
+		LastName  string `gorm:"column:lastname"`
+		Email     string
+		Role      string
+		EventRole string `gorm:"column:event_role"`
+		CreatedAt time.Time
+		UpdatedAt time.Time
+	}
+
+	var usersWithRoles []userWithRole
+	if err := r.db.Table("users").
+		Select("users.id, users.name, users.lastname, users.email, users.role, event_participants.role as event_role, users.created_at, users.updated_at").
+		Joins("JOIN event_participants ON users.id = event_participants.user_id").
 		Where("event_participants.event_id = ?", eventUUID).
-		Find(&users).Error; err != nil {
+		Scan(&usersWithRoles).Error; err != nil {
 		r.log.Error("Failed to get event participants", "eventID", eventID, "error", err)
 		return nil, err
 	}
 
-	r.log.Debug("Retrieved event participants", "eventID", eventID, "count", len(users))
-	return users, nil
+	// Convert to UserWithEventRole
+	result := make([]*participant.UserWithEventRole, len(usersWithRoles))
+	for i, u := range usersWithRoles {
+		result[i] = &participant.UserWithEventRole{
+			User: participant.User{
+				ID:        u.ID,
+				Name:      u.Name,
+				LastName:  u.LastName,
+				Email:     u.Email,
+				Role:      participant.Role(u.Role),
+				CreatedAt: u.CreatedAt,
+				UpdatedAt: u.UpdatedAt,
+			},
+			EventRole: u.EventRole,
+		}
+	}
+
+	r.log.Debug("Retrieved event participants", "eventID", eventID, "count", len(result))
+	return result, nil
 }
 
 func (r *PostgresUserRepository) GetEventParticipantsPaginated(eventID string, params PaginationParams) (*PaginatedResult, error) {
