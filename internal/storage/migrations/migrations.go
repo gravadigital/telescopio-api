@@ -84,6 +84,12 @@ func GetMigrations() []Migration {
 			Up:   migration011Up,
 			Down: migration011Down,
 		},
+		{
+			ID:   "012",
+			Name: "add_max_participants_to_events",
+			Up:   migration012Up,
+			Down: migration012Down,
+		},
 	}
 }
 

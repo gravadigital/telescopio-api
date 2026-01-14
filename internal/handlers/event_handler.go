@@ -34,12 +34,13 @@ func NewEventHandler(eventRepo postgres.EventRepository, userRepo postgres.UserR
 }
 
 type CreateEventRequest struct {
-	Name        string `json:"name" binding:"required,min=3,max=200"`
-	Description string `json:"description" binding:"required,min=10,max=2000"`
-	StartDate   string `json:"start_date" binding:"required"`
-	EndDate     string `json:"end_date" binding:"required"`
-	Organizer   string `json:"organizer"`
-	AuthorID    string `json:"author_id"` // Optional: if provided, use this as author_id
+	Name            string `json:"name" binding:"required,min=3,max=200"`
+	Description     string `json:"description" binding:"required,min=10,max=2000"`
+	StartDate       string `json:"start_date" binding:"required"`
+	EndDate         string `json:"end_date" binding:"required"`
+	Organizer       string `json:"organizer"`
+	AuthorID        string `json:"author_id"`        // Optional: if provided, use this as author_id
+	MaxParticipants *int   `json:"max_participants"` // Optional: if provided, use this limit (default: 20)
 }
 
 // CreateEvent handles POST /api/events
@@ -178,6 +179,30 @@ func (h *EventHandler) CreateEvent(c *gin.Context) {
 
 	newEvent := event.NewEvent(req.Name, req.Description, authorID, startDate, endDate, req.Organizer)
 
+	// Set custom max_participants if provided, otherwise use default (20)
+	if req.MaxParticipants != nil {
+		if *req.MaxParticipants < 1 {
+			h.log.Warn("invalid max_participants value", "value", *req.MaxParticipants)
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":   "max_participants must be at least 1",
+				"code":    "INVALID_MAX_PARTICIPANTS",
+				"details": "Please provide a positive number",
+			})
+			return
+		}
+		if *req.MaxParticipants > 100 {
+			h.log.Warn("max_participants exceeds system limit", "value", *req.MaxParticipants)
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":   "max_participants cannot exceed 100",
+				"code":    "MAX_PARTICIPANTS_LIMIT_EXCEEDED",
+				"details": "System limit is 100 participants per event",
+			})
+			return
+		}
+		newEvent.MaxParticipants = *req.MaxParticipants
+		h.log.Debug("using custom max_participants", "value", *req.MaxParticipants)
+	}
+
 	// Validate the event domain entity
 	if err := newEvent.Validate(); err != nil {
 		h.log.Error("event validation failed", "error", err)
@@ -209,16 +234,17 @@ func (h *EventHandler) CreateEvent(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, gin.H{
 		"event": gin.H{
-			"id":             newEvent.ID.String(),
-			"name":           newEvent.Name,
-			"description":    newEvent.Description,
-			"start_date":     newEvent.StartDate.Format("2006-01-02"),
-			"end_date":       newEvent.EndDate.Format("2006-01-02"),
-			"organizer":      newEvent.Organizer,
-			"shareable_link": newEvent.ShareableLink,
-			"stage":          newEvent.Stage.String(),
-			"author_id":      newEvent.AuthorID.String(),
-			"created_at":     newEvent.CreatedAt,
+			"id":               newEvent.ID.String(),
+			"name":             newEvent.Name,
+			"description":      newEvent.Description,
+			"start_date":       newEvent.StartDate.Format("2006-01-02"),
+			"end_date":         newEvent.EndDate.Format("2006-01-02"),
+			"organizer":        newEvent.Organizer,
+			"shareable_link":   newEvent.ShareableLink,
+			"max_participants": newEvent.MaxParticipants,
+			"stage":            newEvent.Stage.String(),
+			"author_id":        newEvent.AuthorID.String(),
+			"created_at":       newEvent.CreatedAt,
 		},
 		"message": "Event created successfully",
 		"code":    "EVENT_CREATED",
@@ -529,10 +555,26 @@ func (h *EventHandler) RegisterParticipant(c *gin.Context) {
 		}
 	}
 
-	// Check maximum participants limit (optional business rule)
+	// Check maximum participants limit
 	currentParticipants, err := h.userRepo.GetEventParticipants(eventID)
-	maxParticipants := 100 // This could come from configuration or event settings
-	if err == nil && len(currentParticipants) >= maxParticipants {
+	if err != nil {
+		h.log.Error("failed to get current participants count",
+			"event_id", eventID,
+			"error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to verify participant limit",
+			"code":  "PARTICIPANT_CHECK_ERROR",
+		})
+		return
+	}
+
+	// Use max_participants from event configuration (default: 20)
+	maxParticipants := eventObj.MaxParticipants
+	if maxParticipants <= 0 {
+		maxParticipants = 20 // Fallback to default if not set
+	}
+
+	if len(currentParticipants) >= maxParticipants {
 		h.log.Warn("maximum participants reached",
 			"event_id", eventID,
 			"current_count", len(currentParticipants),
