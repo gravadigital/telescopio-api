@@ -84,6 +84,12 @@ func GetMigrations() []Migration {
 			Up:   migration011Up,
 			Down: migration011Down,
 		},
+		{
+			ID:   "012",
+			Name: "unify_participation_stages",
+			Up:   migration012Up,
+			Down: migration012Down,
+		},
 	}
 }
 

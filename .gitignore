@@ -65,3 +65,5 @@ coverage.html
 # Air live reload
 .air.toml
 tmp/
+
+/docs
