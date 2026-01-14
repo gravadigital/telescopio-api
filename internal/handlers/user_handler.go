@@ -13,16 +13,18 @@ import (
 )
 
 type UserHandler struct {
-	userRepo postgres.UserRepository
-	config   *config.Config
-	log      *log.Logger
+	userRepo  postgres.UserRepository
+	eventRepo postgres.EventRepository
+	config    *config.Config
+	log       *log.Logger
 }
 
-func NewUserHandler(userRepo postgres.UserRepository, cfg *config.Config) *UserHandler {
+func NewUserHandler(userRepo postgres.UserRepository, eventRepo postgres.EventRepository, cfg *config.Config) *UserHandler {
 	return &UserHandler{
-		userRepo: userRepo,
-		config:   cfg,
-		log:      logger.Handler("user"),
+		userRepo:  userRepo,
+		eventRepo: eventRepo,
+		config:    cfg,
+		log:       logger.Handler("user"),
 	}
 }
 
@@ -252,5 +254,71 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 			"role":       user.Role.String(),
 			"created_at": user.CreatedAt,
 		},
+	})
+}
+
+// GetUserEvents handles GET /api/v1/users/:user_id/events
+// Returns all events where the user is a participant (not creator)
+func (h *UserHandler) GetUserEvents(c *gin.Context) {
+	requestedUserID := c.Param("user_id")
+	h.log.Debug("received get user events request", "user_id", requestedUserID)
+
+	// Get authenticated user from JWT
+	authenticatedUserID, exists := c.Get("user_id")
+	if !exists {
+		h.log.Warn("no user_id in context (missing authentication)")
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "Unauthorized: No valid authentication token",
+			"code":  "NO_AUTH_TOKEN",
+		})
+		return
+	}
+
+	// Verify user can only access their own events
+	if authenticatedUserID.(string) != requestedUserID {
+		h.log.Warn("user attempting to access another user's events",
+			"authenticated_user", authenticatedUserID,
+			"requested_user", requestedUserID)
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "Unauthorized: You can only view your own events",
+			"code":  "UNAUTHORIZED_ACCESS",
+		})
+		return
+	}
+
+	// Get events from repository
+	events, err := h.eventRepo.GetUserParticipatingEvents(requestedUserID)
+	if err != nil {
+		h.log.Error("failed to retrieve user events", "user_id", requestedUserID, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to retrieve user events",
+			"code":  "RETRIEVAL_ERROR",
+		})
+		return
+	}
+
+	// Transform events to response format
+	response := make([]gin.H, 0, len(events))
+	for _, evt := range events {
+		response = append(response, gin.H{
+			"id":          evt.ID.String(),
+			"name":        evt.Name,
+			"title":       evt.Name, // For frontend compatibility
+			"description": evt.Description,
+			"stage":       evt.Stage.String(),
+			"start_date":  evt.StartDate,
+			"date":        evt.StartDate, // For frontend compatibility
+			"end_date":    evt.EndDate,
+			"organizer":   evt.Organizer,
+			"author_id":   evt.AuthorID.String(),
+			"creator_id":  evt.AuthorID.String(), // For frontend compatibility
+			"created_at":  evt.CreatedAt,
+			"updated_at":  evt.UpdatedAt,
+		})
+	}
+
+	h.log.Info("user events retrieved successfully", "user_id", requestedUserID, "count", len(events))
+	c.JSON(http.StatusOK, gin.H{
+		"data": response,
 	})
 }
