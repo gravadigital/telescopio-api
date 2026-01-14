@@ -130,12 +130,12 @@ func (h *DistributedVoteHandler) CreateVotingConfiguration(c *gin.Context) {
 	// Authorization handled by RequireEventOwnerOrOrganizer middleware
 	// User is guaranteed to have permission to configure this event
 
-	// Only allow configuration during attachment_upload or voting stages
+	// Only allow configuration during participation or voting stages
 	// (after participants have uploaded files but before results are calculated)
-	if eventObj.Stage != event.StageSubmission && eventObj.Stage != event.StageVoting {
+	if eventObj.Stage != event.StageParticipation && eventObj.Stage != event.StageVoting {
 		h.log.Warn("voting configuration attempt in wrong stage", "event_id", eventID, "current_stage", eventObj.Stage)
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":         "Voting configuration can only be set during attachment_upload or voting stages",
+			"error":         "Voting configuration can only be set during participation or voting stages",
 			"code":          "INVALID_EVENT_STAGE",
 			"current_stage": eventObj.Stage.String(),
 		})
@@ -1065,11 +1065,11 @@ func (h *DistributedVoteHandler) UpdateVotingConfiguration(c *gin.Context) {
 		return
 	}
 
-	// Allow updates during attachment_upload or voting stages (before assignments are generated)
+	// Allow updates during participation or voting stages (before assignments are generated)
 	// Same stages allowed for creation
-	if eventObj.Stage != event.StageSubmission && eventObj.Stage != event.StageVoting {
+	if eventObj.Stage != event.StageParticipation && eventObj.Stage != event.StageVoting {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":         "Voting configuration can only be updated during attachment_upload or voting stages",
+			"error":         "Voting configuration can only be updated during participation or voting stages",
 			"code":          "INVALID_EVENT_STAGE",
 			"current_stage": eventObj.Stage.String(),
 		})
@@ -1202,14 +1202,14 @@ func (h *DistributedVoteHandler) DeleteVotingConfiguration(c *gin.Context) {
 		return
 	}
 
-	// Allow deletion in attachment_upload or voting stages (before assignments are generated)
+	// Allow deletion in participation or voting stages (before assignments are generated)
 	// More flexible than before - was only registration stage
-	if eventObj.Stage != event.StageSubmission && eventObj.Stage != event.StageVoting {
+	if eventObj.Stage != event.StageParticipation && eventObj.Stage != event.StageVoting {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":         "Voting configuration can only be deleted during attachment_upload or voting stages (before assignments are generated)",
+			"error":         "Voting configuration can only be deleted during participation or voting stages (before assignments are generated)",
 			"code":          "INVALID_EVENT_STAGE",
 			"current_stage": eventObj.Stage.String(),
-			"allowed_stages": []string{"attachment_upload", "voting"},
+			"allowed_stages": []string{"participation", "voting"},
 		})
 		return
 	}

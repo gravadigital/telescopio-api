@@ -63,11 +63,10 @@ func (e *Event) IsAuthor(userID uuid.UUID) bool {
 // CanTransitionTo checks if the event can transition to a new stage
 func (e *Event) CanTransitionTo(newStage Stage) bool {
 	transitions := map[Stage][]Stage{
-		StageCreation:     {StageRegistration},
-		StageRegistration: {StageSubmission},
-		StageSubmission:   {StageVoting},
-		StageVoting:       {StageResult},
-		StageResult:       {}, // NOTE: No transitions from Result
+		StageCreation:      {StageParticipation},
+		StageParticipation: {StageVoting},
+		StageVoting:        {StageResult},
+		StageResult:        {}, // NOTE: No transitions from Result
 	}
 
 	allowedTransitions, exists := transitions[e.Stage]
@@ -117,11 +116,10 @@ func (e *Event) GetName() string {
 type Stage string
 
 const (
-	StageCreation     Stage = "creation"
-	StageRegistration Stage = "registration"
-	StageSubmission   Stage = "attachment_upload"
-	StageVoting       Stage = "voting"
-	StageResult       Stage = "results"
+	StageCreation      Stage = "creation"
+	StageParticipation Stage = "participation"
+	StageVoting        Stage = "voting"
+	StageResult        Stage = "results"
 )
 
 func (s Stage) String() string {
@@ -153,10 +151,8 @@ func StageFromString(s string) (Stage, bool) {
 	switch s {
 	case "creation":
 		return StageCreation, true
-	case "registration":
-		return StageRegistration, true
-	case "attachment_upload":
-		return StageSubmission, true
+	case "participation":
+		return StageParticipation, true
 	case "voting":
 		return StageVoting, true
 	case "results":

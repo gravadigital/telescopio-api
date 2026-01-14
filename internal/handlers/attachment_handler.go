@@ -86,11 +86,11 @@ func (h *AttachmentHandler) UploadAttachment(c *gin.Context) {
 		return
 	}
 
-	// Validate event stage - only allow uploads during submission stage
-	if eventEntity.Stage != event.StageSubmission {
-		h.log.Warn("upload attempt outside submission stage", "event_id", eventID, "current_stage", eventEntity.Stage)
+	// Validate event stage - only allow uploads during participation stage
+	if eventEntity.Stage != event.StageParticipation {
+		h.log.Warn("upload attempt outside participation stage", "event_id", eventID, "current_stage", eventEntity.Stage)
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":         "File uploads are only allowed during the submission stage",
+			"error":         "File uploads are only allowed during the participation stage",
 			"code":          "INVALID_EVENT_STAGE",
 			"current_stage": eventEntity.Stage,
 		})
@@ -104,6 +104,18 @@ func (h *AttachmentHandler) UploadAttachment(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{
 			"error": "Participant not found",
 			"code":  "PARTICIPANT_NOT_FOUND",
+		})
+		return
+	}
+
+	// Prevent event creator from uploading attachments as participant
+	if participant.ID == eventEntity.AuthorID {
+		h.log.Warn("event creator attempted to upload attachment as participant",
+			"event_id", eventID,
+			"user_id", participant.ID.String())
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "Event creator cannot upload attachments as a participant",
+			"code":  "CREATOR_CANNOT_UPLOAD",
 		})
 		return
 	}
@@ -431,15 +443,31 @@ func (h *AttachmentHandler) DeleteAttachment(c *gin.Context) {
 	//     return
 	// }
 
-	// Check event stage - only allow deletion during submission stage
+	// Check event stage - only allow deletion during participation stage
 	eventEntity, err := h.eventRepo.GetByID(attachment.EventID.String())
-	if err == nil && eventEntity.Stage != event.StageSubmission {
-		h.log.Warn("deletion attempt outside submission stage", "attachment_id", attachmentID, "event_stage", eventEntity.Stage)
+	if err == nil && eventEntity.Stage != event.StageParticipation {
+		h.log.Warn("deletion attempt outside participation stage", "attachment_id", attachmentID, "event_stage", eventEntity.Stage)
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Attachments can only be deleted during the submission stage",
+			"error": "Attachments can only be deleted during the participation stage",
 			"code":  "INVALID_EVENT_STAGE",
 		})
 		return
+	}
+
+	// Prevent event creator from deleting attachments as participant
+	if err == nil {
+		participant, err := h.userRepo.GetByID(attachment.ParticipantID.String())
+		if err == nil && participant.ID == eventEntity.AuthorID {
+			h.log.Warn("event creator attempted to delete attachment as participant",
+				"attachment_id", attachmentID,
+				"event_id", eventEntity.ID.String(),
+				"user_id", participant.ID.String())
+			c.JSON(http.StatusForbidden, gin.H{
+				"error": "Event creator cannot delete attachments as a participant",
+				"code":  "CREATOR_CANNOT_DELETE",
+			})
+			return
+		}
 	}
 
 	// Delete from database
