@@ -49,6 +49,7 @@ type EventRepository interface {
 	GetAllPaginated(params PaginationParams) (*PaginatedResult, error)
 	GetByAuthor(authorID string) ([]*event.Event, error)
 	GetByParticipant(participantID string) ([]*event.Event, error)
+	GetUserParticipatingEvents(userID string) ([]*event.Event, error)
 	Update(event *event.Event) error
 	Delete(id string) error
 	UpdateStage(eventID string, stage event.Stage) error

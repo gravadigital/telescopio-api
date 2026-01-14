@@ -111,6 +111,33 @@ func (r *PostgresEventRepository) GetByParticipant(participantID string) ([]*eve
 	return events, nil
 }
 
+// GetUserParticipatingEvents returns all events where a user participates (excluding events they created)
+func (r *PostgresEventRepository) GetUserParticipatingEvents(userID string) ([]*event.Event, error) {
+	r.log.Debug("retrieving participating events for user", "user_id", userID)
+
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		r.log.Error("invalid user ID format", "user_id", userID, "error", err)
+		return nil, errors.New("invalid user ID format")
+	}
+
+	var events []*event.Event
+	err = r.db.
+		Joins("JOIN event_participants ON events.id = event_participants.event_id").
+		Where("event_participants.user_id = ?", userUUID).
+		Where("events.author_id != ?", userUUID).
+		Order("events.created_at DESC").
+		Find(&events).Error
+
+	if err != nil {
+		r.log.Error("failed to get user participating events", "user_id", userID, "error", err)
+		return nil, err
+	}
+
+	r.log.Debug("retrieved participating events", "user_id", userID, "count", len(events))
+	return events, nil
+}
+
 func (r *PostgresEventRepository) UpdateStage(eventID string, stage event.Stage) error {
 	r.log.Debug("updating event stage", "event_id", eventID, "new_stage", stage.String())
 
