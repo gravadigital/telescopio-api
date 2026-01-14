@@ -678,6 +678,20 @@ func (h *DistributedVoteHandler) SubmitRankingVotes(c *gin.Context) {
 		return
 	}
 
+	// IMPORTANT: Check if assignment is already completed (votes already submitted)
+	if assignment.IsCompleted {
+		h.log.Warn("attempt to submit votes for already completed assignment",
+			"event_id", eventID,
+			"participant_id", participantID,
+			"assignment_id", assignment.ID)
+		c.JSON(http.StatusConflict, gin.H{
+			"error":        "Votes have already been submitted for this assignment",
+			"code":         "VOTES_ALREADY_SUBMITTED",
+			"completed_at": assignment.CompletedAt,
+		})
+		return
+	}
+
 	// Get assigned attachments to validate the vote
 	assignedAttachments := assignment.GetAttachmentUUIDs()
 	assignedMap := make(map[uuid.UUID]bool)
