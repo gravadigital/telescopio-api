@@ -265,6 +265,8 @@ func (r *PostgresUserRepository) GetEventParticipants(eventID string) ([]*partic
 	}
 
 	// Query that selects user data along with their event role
+	// IMPORTANT: Exclude the event creator from participants list
+	// The creator should not be counted as a participant for voting purposes
 	type userWithRole struct {
 		ID        uuid.UUID
 		Name      string
@@ -280,7 +282,9 @@ func (r *PostgresUserRepository) GetEventParticipants(eventID string) ([]*partic
 	if err := r.db.Table("users").
 		Select("users.id, users.name, users.lastname, users.email, users.role, event_participants.role as event_role, users.created_at, users.updated_at").
 		Joins("JOIN event_participants ON users.id = event_participants.user_id").
+		Joins("JOIN events ON events.id = event_participants.event_id").
 		Where("event_participants.event_id = ?", eventUUID).
+		Where("users.id != events.author_id"). // Exclude event creator
 		Scan(&usersWithRoles).Error; err != nil {
 		r.log.Error("Failed to get event participants", "eventID", eventID, "error", err)
 		return nil, err
@@ -303,7 +307,7 @@ func (r *PostgresUserRepository) GetEventParticipants(eventID string) ([]*partic
 		}
 	}
 
-	r.log.Debug("Retrieved event participants", "eventID", eventID, "count", len(result))
+	r.log.Debug("Retrieved event participants (excluding creator)", "eventID", eventID, "count", len(result))
 	return result, nil
 }
 
@@ -329,20 +333,24 @@ func (r *PostgresUserRepository) GetEventParticipantsPaginated(eventID string, p
 
 	offset := (params.Page - 1) * params.PageSize
 
-	// Get total count of participants for this event
+	// Get total count of participants for this event (excluding event creator)
 	var total int64
 	if err := r.db.Model(&participant.User{}).
 		Joins("JOIN event_participants ON users.id = event_participants.user_id").
+		Joins("JOIN events ON events.id = event_participants.event_id").
 		Where("event_participants.event_id = ?", eventUUID).
+		Where("users.id != events.author_id"). // Exclude event creator
 		Count(&total).Error; err != nil {
 		r.log.Error("failed to count event participants", "event_id", eventID, "error", err)
 		return nil, fmt.Errorf("failed to count event participants: %w", err)
 	}
 
-	// Get paginated participants
+	// Get paginated participants (excluding event creator)
 	var users []*participant.User
 	if err := r.db.Joins("JOIN event_participants ON users.id = event_participants.user_id").
+		Joins("JOIN events ON events.id = event_participants.event_id").
 		Where("event_participants.event_id = ?", eventUUID).
+		Where("users.id != events.author_id"). // Exclude event creator
 		Offset(offset).Limit(params.PageSize).
 		Order("event_participants.joined_at DESC").
 		Find(&users).Error; err != nil {
