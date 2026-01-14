@@ -56,7 +56,7 @@ func main() {
 
 	eventHandler := handlers.NewEventHandler(eventRepo, userRepo, attachmentRepo, cfg)
 	attachmentHandler := handlers.NewAttachmentHandler(attachmentRepo, eventRepo, userRepo, cfg)
-	userHandler := handlers.NewUserHandler(userRepo, cfg)
+	userHandler := handlers.NewUserHandler(userRepo, eventRepo, cfg)
 
 	configRepo := postgres.NewPostgresVotingConfigurationRepository(db)
 	resultsRepo := postgres.NewPostgresVotingResultsRepository(db)
@@ -100,12 +100,13 @@ func main() {
 			users.POST("/authenticate", userHandler.AuthenticateUser) // Login (returns JWT)
 		}
 
-		// Protected user endpoints (require authentication)
-		usersProtected := api.Group("/users")
-		usersProtected.Use(auth.JWTAuthMiddleware())
-		{
-			usersProtected.GET("/:user_id", userHandler.GetUser)
-		}
+	// Protected user endpoints (require authentication)
+	usersProtected := api.Group("/users")
+	usersProtected.Use(auth.JWTAuthMiddleware())
+	{
+		usersProtected.GET("/:user_id", userHandler.GetUser)
+		usersProtected.GET("/:user_id/events", userHandler.GetUserEvents) // Get events where user participates
+	}
 
 		// Event management - Public endpoints (no authentication required)
 		eventsPublic := api.Group("/events")
