@@ -11,7 +11,6 @@ import (
 	"github.com/gravadigital/telescopio-api/internal/logger"
 )
 
-// Container implements RepositoryContainer interface
 type Container struct {
 	db                      *gorm.DB
 	log                     *log.Logger

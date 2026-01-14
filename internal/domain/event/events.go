@@ -12,17 +12,18 @@ import (
 
 // Event represents a voting event for telescope time allocation
 type Event struct {
-	ID            uuid.UUID `json:"id" gorm:"type:uuid;primaryKey;default:uuid_generate_v4()"`
-	Name          string    `json:"name" gorm:"not null"`
-	Description   string    `json:"description" gorm:"not null"`
-	AuthorID      uuid.UUID `json:"author_id" gorm:"type:uuid;not null"`
-	StartDate     time.Time `json:"start_date" gorm:"not null"`
-	EndDate       time.Time `json:"end_date" gorm:"not null"`
-	Organizer     string    `json:"organizer" gorm:"default:''"`
-	ShareableLink string    `json:"shareable_link" gorm:"uniqueIndex;not null"`
-	Stage         Stage     `json:"stage" gorm:"type:event_stage;not null;default:'creation'"`
-	CreatedAt     time.Time `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt     time.Time `json:"updated_at" gorm:"autoUpdateTime"`
+	ID              uuid.UUID `json:"id" gorm:"type:uuid;primaryKey;default:uuid_generate_v4()"`
+	Name            string    `json:"name" gorm:"not null"`
+	Description     string    `json:"description" gorm:"not null"`
+	AuthorID        uuid.UUID `json:"author_id" gorm:"type:uuid;not null"`
+	StartDate       time.Time `json:"start_date" gorm:"not null"`
+	EndDate         time.Time `json:"end_date" gorm:"not null"`
+	Organizer       string    `json:"organizer" gorm:"default:''"`
+	ShareableLink   string    `json:"shareable_link" gorm:"uniqueIndex;not null"`
+	MaxParticipants int       `json:"max_participants" gorm:"not null;default:20"`
+	Stage           Stage     `json:"stage" gorm:"type:event_stage;not null;default:'creation'"`
+	CreatedAt       time.Time `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt       time.Time `json:"updated_at" gorm:"autoUpdateTime"`
 }
 
 // TableName overrides the table name used by GORM
@@ -42,16 +43,17 @@ func (e *Event) BeforeCreate(tx *gorm.DB) error {
 func NewEvent(name, description string, authorID uuid.UUID, startDate, endDate time.Time, organizer string) *Event {
 	eventID := uuid.New()
 	return &Event{
-		ID:            eventID,
-		Name:          name,
-		Description:   description,
-		AuthorID:      authorID,
-		StartDate:     startDate,
-		EndDate:       endDate,
-		Organizer:     organizer,
-		ShareableLink: "/events/" + eventID.String(),
-		Stage:         StageCreation,
-		CreatedAt:     time.Now(),
+		ID:              eventID,
+		Name:            name,
+		Description:     description,
+		AuthorID:        authorID,
+		StartDate:       startDate,
+		EndDate:         endDate,
+		Organizer:       organizer,
+		ShareableLink:   "/events/" + eventID.String(),
+		MaxParticipants: 20, // Default limit
+		Stage:           StageCreation,
+		CreatedAt:       time.Now(),
 	}
 }
 
