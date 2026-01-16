@@ -754,16 +754,27 @@ func (h *EventHandler) GetAllEvents(c *gin.Context) {
 	// Transform events data
 	eventData := make([]gin.H, len(filteredEvents))
 	for i, evt := range filteredEvents {
+		// Get participant IDs for this event
+		participantIDs := []string{}
+		participants, err := h.userRepo.GetEventParticipants(evt.ID.String())
+		if err == nil {
+			for _, p := range participants {
+				participantIDs = append(participantIDs, p.ID.String())
+			}
+		}
+
 		eventData[i] = gin.H{
-			"id":          evt.ID.String(),
-			"name":        evt.Name,
-			"description": evt.Description,
-			"start_date":  evt.StartDate.Format("2006-01-02"),
-			"end_date":    evt.EndDate.Format("2006-01-02"),
-			"stage":       evt.Stage.String(),
-			"author_id":   evt.AuthorID.String(),
-			"created_at":  evt.CreatedAt,
-			"updated_at":  evt.UpdatedAt,
+			"id":               evt.ID.String(),
+			"name":             evt.Name,
+			"description":      evt.Description,
+			"start_date":       evt.StartDate.Format("2006-01-02"),
+			"end_date":         evt.EndDate.Format("2006-01-02"),
+			"stage":            evt.Stage.String(),
+			"author_id":        evt.AuthorID.String(),
+			"max_participants": evt.MaxParticipants,
+			"participant_ids":  participantIDs,
+			"created_at":       evt.CreatedAt,
+			"updated_at":       evt.UpdatedAt,
 		}
 	}
 
@@ -854,6 +865,7 @@ func (h *EventHandler) GetEvent(c *gin.Context) {
 			"end_date":         eventObj.EndDate.Format("2006-01-02"),
 			"stage":            eventObj.Stage.String(),
 			"author_id":        eventObj.AuthorID.String(),
+			"max_participants": eventObj.MaxParticipants,
 			"participant_ids":  participantIDs,
 			"attachment_count": attachmentCount,
 			"created_at":       eventObj.CreatedAt,
