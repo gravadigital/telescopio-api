@@ -14,11 +14,10 @@ import (
 type EventStage string
 
 const (
-	EventStageCreation         EventStage = "creation"
-	EventStageRegistration     EventStage = "registration"
-	EventStageAttachmentUpload EventStage = "attachment_upload"
-	EventStageVoting           EventStage = "voting"
-	EventStageResults          EventStage = "results"
+	EventStageCreation      EventStage = "creation"
+	EventStageParticipation EventStage = "participation"
+	EventStageVoting        EventStage = "voting"
+	EventStageResults       EventStage = "results"
 )
 
 func (es *EventStage) Scan(value any) error {
