@@ -5,12 +5,22 @@ import "gorm.io/gorm"
 // migration010Up adds role-based permissions to event participants
 // and makes user.role nullable (only for admins)
 func migration010Up(db *gorm.DB) error {
-	sqls := []string{
-		// 1. Create enum type for event participant roles
-		`CREATE TYPE IF NOT EXISTS event_participant_role AS ENUM ('creator', 'participant')`,
+	// 1. Create enum type for event participant roles (only if it doesn't exist)
+	err := db.Exec(`
+		DO $$
+		BEGIN
+			IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'event_participant_role') THEN
+				CREATE TYPE event_participant_role AS ENUM ('creator', 'participant');
+			END IF;
+		END $$;
+	`).Error
+	if err != nil {
+		return err
+	}
 
+	sqls := []string{
 		// 2. Add role column to event_participants
-		`ALTER TABLE event_participants 
+		`ALTER TABLE event_participants
 		 ADD COLUMN IF NOT EXISTS role event_participant_role NOT NULL DEFAULT 'participant'`,
 
 		// 3. Update existing creators based on events.author_id
@@ -30,17 +40,23 @@ func migration010Up(db *gorm.DB) error {
 		// 6. Add shareable_link column to events
 		`ALTER TABLE events ADD COLUMN IF NOT EXISTS shareable_link VARCHAR(255)`,
 
-		// 7. Generate shareable links for existing events
+		// 7. Temporarily disable the constraint to allow updates
+		`ALTER TABLE events DROP CONSTRAINT IF EXISTS future_start_date`,
+
+		// 8. Generate shareable links for existing events
 		`UPDATE events SET shareable_link = '/events/' || id::text WHERE shareable_link IS NULL`,
 
-		// 8. Add comments for documentation
+		// 9. Restore the constraint but don't validate existing rows (NOT VALID means it only applies to new/modified rows)
+		`ALTER TABLE events ADD CONSTRAINT future_start_date CHECK (start_date >= CURRENT_TIMESTAMP - INTERVAL '1 day') NOT VALID`,
+
+		// 10. Add comments for documentation
 		`COMMENT ON COLUMN event_participants.role IS 'Role of the user in this specific event (creator: event owner, participant: regular participant)'`,
 		`COMMENT ON COLUMN users.role IS 'Global system role (only ''admin'' or NULL for regular users)'`,
 		`COMMENT ON COLUMN events.shareable_link IS 'URL path for sharing this event on social media'`,
 	}
 
 	for _, sql := range sqls {
-		if err := db.Exec(sql).Error; err != nil {
+		if err = db.Exec(sql).Error; err != nil {
 			return err
 		}
 	}

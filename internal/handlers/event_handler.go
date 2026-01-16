@@ -313,7 +313,7 @@ func (h *EventHandler) UpdateEventStage(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":        "Invalid stage",
 			"code":         "INVALID_STAGE",
-			"valid_stages": []string{"creation", "registration", "attachment_upload", "voting", "results"},
+			"valid_stages": []string{"creation", "participation", "voting", "results"},
 		})
 		return
 	}
@@ -335,18 +335,6 @@ func (h *EventHandler) UpdateEventStage(c *gin.Context) {
 
 	// Additional business rules validation before stage transitions
 	switch newStage {
-	case event.StageSubmission:
-		// Check if there are participants registered
-		participants, err := h.userRepo.GetEventParticipants(eventID)
-		if err != nil || len(participants) == 0 {
-			h.log.Warn("attempting to move to submission stage without participants", "event_id", eventID)
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": "Cannot move to submission stage without registered participants",
-				"code":  "NO_PARTICIPANTS",
-			})
-			return
-		}
-
 	case event.StageVoting:
 		h.log.Debug("moving to voting stage", "event_id", eventID)
 
@@ -476,7 +464,7 @@ func (h *EventHandler) RegisterParticipant(c *gin.Context) {
 		return
 	}
 
-	// Check if event exists and is in registration stage
+	// Check if event exists and is in participation stage
 	eventObj, err := h.eventRepo.GetByID(eventID)
 	if err != nil {
 		h.log.Error("event not found", "event_id", eventID, "error", err)
@@ -487,13 +475,13 @@ func (h *EventHandler) RegisterParticipant(c *gin.Context) {
 		return
 	}
 
-	// Only allow registration during registration stage
-	if eventObj.Stage != event.StageRegistration {
-		h.log.Warn("registration attempt outside registration stage",
+	// Only allow registration during participation stage
+	if eventObj.Stage != event.StageParticipation {
+		h.log.Warn("registration attempt outside participation stage",
 			"event_id", eventID,
 			"current_stage", eventObj.Stage.String())
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":         "Participant registration is only allowed during registration stage",
+			"error":         "Participant registration is only allowed during participation stage",
 			"code":          "INVALID_REGISTRATION_STAGE",
 			"current_stage": eventObj.Stage.String(),
 		})
@@ -677,7 +665,7 @@ func (h *EventHandler) GetEventParticipants(c *gin.Context) {
 			"id":         p.ID.String(),
 			"name":       p.Name,
 			"email":      p.Email,
-			"role":       p.Role.String(),
+			"role":       p.EventRole, // Use event-specific role (creator/participant)
 			"created_at": p.CreatedAt,
 		}
 	}
@@ -743,7 +731,7 @@ func (h *EventHandler) GetAllEvents(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error":        "Invalid stage filter",
 				"code":         "INVALID_STAGE_FILTER",
-				"valid_stages": []string{"creation", "registration", "attachment_upload", "voting", "results"},
+				"valid_stages": []string{"creation", "participation", "voting", "results"},
 			})
 			return
 		}
@@ -1096,10 +1084,10 @@ func (h *EventHandler) RemoveParticipant(c *gin.Context) {
 		return
 	}
 
-	// Only allow removal during registration stage
-	if existingEvent.Stage != event.StageRegistration {
+	// Only allow removal during participation stage
+	if existingEvent.Stage != event.StageParticipation {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":         "Participants can only be removed during registration stage",
+			"error":         "Participants can only be removed during participation stage",
 			"code":          "INVALID_REMOVAL_STAGE",
 			"current_stage": existingEvent.Stage.String(),
 		})
