@@ -3,6 +3,7 @@ package postgres
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
@@ -153,6 +154,68 @@ func (r *PostgresEventRepository) UpdateStage(eventID string, stage event.Stage)
 	}
 
 	r.log.Info("event stage updated successfully", "event_id", eventID, "new_stage", stage.String())
+	return nil
+}
+
+// UpdateStageWithEstimatedDate updates event stage and sets the estimated end date for that stage
+func (r *PostgresEventRepository) UpdateStageWithEstimatedDate(eventID string, stage event.Stage, estimatedDate *time.Time) error {
+	r.log.Debug("updating event stage with estimated date", "event_id", eventID, "stage", stage.String())
+
+	eventUUID, err := uuid.Parse(eventID)
+	if err != nil {
+		r.log.Error("invalid event ID format", "event_id", eventID, "error", err)
+		return errors.New("invalid event ID format")
+	}
+
+	updates := map[string]interface{}{
+		"stage": stage,
+	}
+
+	// Set the appropriate estimated date field based on stage
+	if estimatedDate != nil {
+		switch stage {
+		case event.StageParticipation:
+			updates["participation_estimated_end_date"] = estimatedDate
+		case event.StageVoting:
+			updates["voting_estimated_end_date"] = estimatedDate
+		}
+	}
+
+	if err := r.db.Model(&event.Event{}).Where("id = ?", eventUUID).Updates(updates).Error; err != nil {
+		r.log.Error("failed to update event stage with estimated date", "event_id", eventID, "error", err)
+		return err
+	}
+
+	r.log.Info("event stage updated with estimated date", "event_id", eventID, "stage", stage.String())
+	return nil
+}
+
+// UpdateEstimatedEndDate updates only the estimated end date for a specific stage
+func (r *PostgresEventRepository) UpdateEstimatedEndDate(eventID string, stage event.Stage, newDate time.Time) error {
+	r.log.Debug("updating estimated end date", "event_id", eventID, "stage", stage.String(), "new_date", newDate)
+
+	eventUUID, err := uuid.Parse(eventID)
+	if err != nil {
+		r.log.Error("invalid event ID format", "event_id", eventID, "error", err)
+		return errors.New("invalid event ID format")
+	}
+
+	var columnName string
+	switch stage {
+	case event.StageParticipation:
+		columnName = "participation_estimated_end_date"
+	case event.StageVoting:
+		columnName = "voting_estimated_end_date"
+	default:
+		return fmt.Errorf("invalid stage for estimated end date: %s", stage)
+	}
+
+	if err := r.db.Model(&event.Event{}).Where("id = ?", eventUUID).Update(columnName, newDate).Error; err != nil {
+		r.log.Error("failed to update estimated end date", "event_id", eventID, "error", err)
+		return err
+	}
+
+	r.log.Info("estimated end date updated", "event_id", eventID, "stage", stage.String())
 	return nil
 }
 

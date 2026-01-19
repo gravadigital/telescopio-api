@@ -250,7 +250,13 @@ func (h *EventHandler) CreateEvent(c *gin.Context) {
 }
 
 type UpdateStageRequest struct {
-	Stage string `json:"stage" binding:"required"`
+	Stage            string `json:"stage" binding:"required"`
+	EstimatedEndDate string `json:"estimated_end_date"` // Optional: YYYY-MM-DD format, required for participation/voting
+}
+
+type UpdateEstimatedEndDateRequest struct {
+	Stage            string `json:"stage" binding:"required"`
+	EstimatedEndDate string `json:"estimated_end_date" binding:"required"`
 }
 
 // UpdateEventStage handles PATCH /api/events/{event_id}/stage
@@ -331,6 +337,44 @@ func (h *EventHandler) UpdateEventStage(c *gin.Context) {
 		return
 	}
 
+	// Validate estimated_end_date for participation and voting stages
+	var estimatedDate *time.Time
+	if newStage == event.StageParticipation || newStage == event.StageVoting {
+		if req.EstimatedEndDate == "" {
+			h.log.Warn("missing estimated_end_date for stage transition", "stage", req.Stage)
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "estimated_end_date is required when advancing to participation or voting stage",
+				"code":  "MISSING_ESTIMATED_DATE",
+			})
+			return
+		}
+
+		parsedDate, err := time.Parse("2006-01-02", req.EstimatedEndDate)
+		if err != nil {
+			h.log.Warn("invalid estimated_end_date format", "date", req.EstimatedEndDate, "error", err)
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":   "Invalid estimated_end_date format",
+				"code":    "INVALID_DATE_FORMAT",
+				"details": "Expected format: YYYY-MM-DD",
+			})
+			return
+		}
+
+		// Validate date is not in the past
+		today := time.Now().Truncate(24 * time.Hour)
+		if parsedDate.Before(today) {
+			h.log.Warn("estimated_end_date is in the past", "date", req.EstimatedEndDate)
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":   "Estimated end date must be today or in the future",
+				"code":    "INVALID_ESTIMATED_DATE",
+				"details": "Provided date: " + req.EstimatedEndDate + ", Current date: " + today.Format("2006-01-02"),
+			})
+			return
+		}
+
+		estimatedDate = &parsedDate
+	}
+
 	// Additional business rules validation before stage transitions
 	switch newStage {
 	case event.StageVoting:
@@ -374,7 +418,8 @@ func (h *EventHandler) UpdateEventStage(c *gin.Context) {
 		h.log.Debug("moving to results stage", "event_id", eventID)
 	}
 
-	if err := h.eventRepo.UpdateStage(eventID, newStage); err != nil {
+	// Update stage with estimated date
+	if err := h.eventRepo.UpdateStageWithEstimatedDate(eventID, newStage, estimatedDate); err != nil {
 		h.log.Error("failed to update event stage", "event_id", eventID, "new_stage", req.Stage, "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to update event stage",
@@ -401,14 +446,16 @@ func (h *EventHandler) UpdateEventStage(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"data": gin.H{
-			"id":          updatedEvent.ID.String(),
-			"name":        updatedEvent.Name,
-			"description": updatedEvent.Description,
-			"start_date":  updatedEvent.StartDate.Format("2006-01-02"),
-			"end_date":    updatedEvent.EndDate.Format("2006-01-02"),
-			"stage":       updatedEvent.Stage.String(),
-			"author_id":   updatedEvent.AuthorID.String(),
-			"updated_at":  updatedEvent.UpdatedAt,
+			"id":                               updatedEvent.ID.String(),
+			"name":                             updatedEvent.Name,
+			"description":                      updatedEvent.Description,
+			"start_date":                       updatedEvent.StartDate.Format("2006-01-02"),
+			"end_date":                         updatedEvent.EndDate.Format("2006-01-02"),
+			"stage":                            updatedEvent.Stage.String(),
+			"participation_estimated_end_date": formatDatePtr(updatedEvent.ParticipationEstimatedEndDate),
+			"voting_estimated_end_date":        formatDatePtr(updatedEvent.VotingEstimatedEndDate),
+			"author_id":                        updatedEvent.AuthorID.String(),
+			"updated_at":                       updatedEvent.UpdatedAt,
 		},
 		"message": "Event stage updated successfully",
 		"code":    "STAGE_UPDATED",
@@ -416,6 +463,155 @@ func (h *EventHandler) UpdateEventStage(c *gin.Context) {
 			"from": existingEvent.Stage.String(),
 			"to":   updatedEvent.Stage.String(),
 		},
+	})
+}
+
+// UpdateEstimatedEndDate handles PATCH /api/v1/events/{event_id}/estimated-end-date
+// Allows the event organizer to edit the estimated end date for an active stage
+func (h *EventHandler) UpdateEstimatedEndDate(c *gin.Context) {
+	eventID := c.Param("event_id")
+
+	h.log.Debug("updating estimated end date", "event_id", eventID)
+
+	// Validate UUID format
+	if _, err := uuid.Parse(eventID); err != nil {
+		h.log.Warn("invalid event_id format", "event_id", eventID, "error", err)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid event_id format",
+			"code":  "INVALID_EVENT_ID",
+		})
+		return
+	}
+
+	var req UpdateEstimatedEndDateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.log.Warn("invalid request payload", "error", err)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Invalid request payload",
+			"code":    "INVALID_PAYLOAD",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	// Get the event
+	existingEvent, err := h.eventRepo.GetByID(eventID)
+	if err != nil {
+		h.log.Error("event not found", "event_id", eventID, "error", err)
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "Event not found",
+			"code":  "EVENT_NOT_FOUND",
+		})
+		return
+	}
+
+	// Parse and validate target stage
+	targetStage, valid := event.StageFromString(req.Stage)
+	if !valid || (targetStage != event.StageParticipation && targetStage != event.StageVoting) {
+		h.log.Warn("invalid stage for estimated end date", "stage", req.Stage)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":        "Invalid stage for estimated end date",
+			"code":         "INVALID_STAGE",
+			"valid_stages": []string{"participation", "voting"},
+		})
+		return
+	}
+
+	// Validate event is in the specified stage
+	if existingEvent.Stage != targetStage {
+		h.log.Warn("event not in specified stage",
+			"event_id", eventID,
+			"current_stage", existingEvent.Stage.String(),
+			"requested_stage", req.Stage)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Event is not in the specified stage",
+			"code":  "INVALID_STAGE_FOR_EDIT",
+			"details": gin.H{
+				"current_stage":   existingEvent.Stage.String(),
+				"requested_stage": req.Stage,
+			},
+		})
+		return
+	}
+
+	// Parse new date
+	newDate, err := time.Parse("2006-01-02", req.EstimatedEndDate)
+	if err != nil {
+		h.log.Warn("invalid date format", "date", req.EstimatedEndDate, "error", err)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Invalid estimated_end_date format",
+			"code":    "INVALID_DATE_FORMAT",
+			"details": "Expected format: YYYY-MM-DD",
+		})
+		return
+	}
+
+	// Validate new date is not in the past
+	today := time.Now().Truncate(24 * time.Hour)
+	if newDate.Before(today) {
+		h.log.Warn("new date is in the past", "date", req.EstimatedEndDate)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Estimated end date must be today or in the future",
+			"code":  "INVALID_ESTIMATED_DATE",
+		})
+		return
+	}
+
+	// Get current estimated date for the stage
+	var currentDate *time.Time
+	if targetStage == event.StageParticipation {
+		currentDate = existingEvent.ParticipationEstimatedEndDate
+	} else {
+		currentDate = existingEvent.VotingEstimatedEndDate
+	}
+
+	// If there's a current date that hasn't passed, validate we're only postponing
+	if currentDate != nil && !currentDate.Before(today) && newDate.Before(*currentDate) {
+		h.log.Warn("attempt to advance deadline",
+			"event_id", eventID,
+			"current_date", currentDate.Format("2006-01-02"),
+			"requested_date", req.EstimatedEndDate)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "You can only postpone the deadline, not bring it forward",
+			"code":  "CANNOT_ADVANCE_DEADLINE",
+			"details": gin.H{
+				"current_date":   currentDate.Format("2006-01-02"),
+				"requested_date": req.EstimatedEndDate,
+			},
+		})
+		return
+	}
+
+	// Update estimated end date
+	if err := h.eventRepo.UpdateEstimatedEndDate(eventID, targetStage, newDate); err != nil {
+		h.log.Error("failed to update estimated end date", "event_id", eventID, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to update estimated end date",
+			"code":  "UPDATE_ERROR",
+		})
+		return
+	}
+
+	h.log.Info("estimated end date updated",
+		"event_id", eventID,
+		"stage", req.Stage,
+		"new_date", req.EstimatedEndDate)
+
+	// Build response
+	previousDateStr := ""
+	if currentDate != nil {
+		previousDateStr = currentDate.Format("2006-01-02")
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Estimated end date updated successfully",
+		"data": gin.H{
+			"event_id":           eventID,
+			"stage":              req.Stage,
+			"estimated_end_date": req.EstimatedEndDate,
+			"previous_date":      previousDateStr,
+		},
+		"code": "ESTIMATED_DATE_UPDATED",
 	})
 }
 
@@ -764,17 +960,19 @@ func (h *EventHandler) GetAllEvents(c *gin.Context) {
 		}
 
 		eventData[i] = gin.H{
-			"id":               evt.ID.String(),
-			"name":             evt.Name,
-			"description":      evt.Description,
-			"start_date":       evt.StartDate.Format("2006-01-02"),
-			"end_date":         evt.EndDate.Format("2006-01-02"),
-			"stage":            evt.Stage.String(),
-			"author_id":        evt.AuthorID.String(),
-			"max_participants": evt.MaxParticipants,
-			"participant_ids":  participantIDs,
-			"created_at":       evt.CreatedAt,
-			"updated_at":       evt.UpdatedAt,
+			"id":                               evt.ID.String(),
+			"name":                             evt.Name,
+			"description":                      evt.Description,
+			"start_date":                       evt.StartDate.Format("2006-01-02"),
+			"end_date":                         evt.EndDate.Format("2006-01-02"),
+			"stage":                            evt.Stage.String(),
+			"author_id":                        evt.AuthorID.String(),
+			"max_participants":                 evt.MaxParticipants,
+			"participation_estimated_end_date": formatDatePtr(evt.ParticipationEstimatedEndDate),
+			"voting_estimated_end_date":        formatDatePtr(evt.VotingEstimatedEndDate),
+			"participant_ids":                  participantIDs,
+			"created_at":                       evt.CreatedAt,
+			"updated_at":                       evt.UpdatedAt,
 		}
 	}
 
@@ -858,18 +1056,20 @@ func (h *EventHandler) GetEvent(c *gin.Context) {
 
 	response := gin.H{
 		"data": gin.H{
-			"id":               eventObj.ID.String(),
-			"name":             eventObj.Name,
-			"description":      eventObj.Description,
-			"start_date":       eventObj.StartDate.Format("2006-01-02"),
-			"end_date":         eventObj.EndDate.Format("2006-01-02"),
-			"stage":            eventObj.Stage.String(),
-			"author_id":        eventObj.AuthorID.String(),
-			"max_participants": eventObj.MaxParticipants,
-			"participant_ids":  participantIDs,
-			"attachment_count": attachmentCount,
-			"created_at":       eventObj.CreatedAt,
-			"updated_at":       eventObj.UpdatedAt,
+			"id":                               eventObj.ID.String(),
+			"name":                             eventObj.Name,
+			"description":                      eventObj.Description,
+			"start_date":                       eventObj.StartDate.Format("2006-01-02"),
+			"end_date":                         eventObj.EndDate.Format("2006-01-02"),
+			"stage":                            eventObj.Stage.String(),
+			"author_id":                        eventObj.AuthorID.String(),
+			"max_participants":                 eventObj.MaxParticipants,
+			"participation_estimated_end_date": formatDatePtr(eventObj.ParticipationEstimatedEndDate),
+			"voting_estimated_end_date":        formatDatePtr(eventObj.VotingEstimatedEndDate),
+			"participant_ids":                  participantIDs,
+			"attachment_count":                 attachmentCount,
+			"created_at":                       eventObj.CreatedAt,
+			"updated_at":                       eventObj.UpdatedAt,
 		},
 	}
 
@@ -1218,4 +1418,12 @@ func (h *EventHandler) GetShareableEventInfo(c *gin.Context) {
 			"twitter_image":       ogImageURL,
 		},
 	})
+}
+
+// formatDatePtr formats a time pointer to YYYY-MM-DD string or returns nil
+func formatDatePtr(t *time.Time) interface{} {
+	if t == nil {
+		return nil
+	}
+	return t.Format("2006-01-02")
 }

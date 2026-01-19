@@ -12,18 +12,20 @@ import (
 
 // Event represents a voting event for telescope time allocation
 type Event struct {
-	ID              uuid.UUID `json:"id" gorm:"type:uuid;primaryKey;default:uuid_generate_v4()"`
-	Name            string    `json:"name" gorm:"not null"`
-	Description     string    `json:"description" gorm:"not null"`
-	AuthorID        uuid.UUID `json:"author_id" gorm:"type:uuid;not null"`
-	StartDate       time.Time `json:"start_date" gorm:"not null"`
-	EndDate         time.Time `json:"end_date" gorm:"not null"`
-	Organizer       string    `json:"organizer" gorm:"default:''"`
-	Stage           Stage     `json:"stage" gorm:"type:event_stage;not null;default:'creation'"`
-	MaxParticipants *int      `json:"max_participants,omitempty" gorm:"default:null"`
-	ShareableLink   string    `json:"shareable_link,omitempty" gorm:"default:''"`
-	CreatedAt       time.Time `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt       time.Time `json:"updated_at" gorm:"autoUpdateTime"`
+	ID                            uuid.UUID  `json:"id" gorm:"type:uuid;primaryKey;default:uuid_generate_v4()"`
+	Name                          string     `json:"name" gorm:"not null"`
+	Description                   string     `json:"description" gorm:"not null"`
+	AuthorID                      uuid.UUID  `json:"author_id" gorm:"type:uuid;not null"`
+	StartDate                     time.Time  `json:"start_date" gorm:"not null"`
+	EndDate                       time.Time  `json:"end_date" gorm:"not null"`
+	Organizer                     string     `json:"organizer" gorm:"default:''"`
+	Stage                         Stage      `json:"stage" gorm:"type:event_stage;not null;default:'creation'"`
+	MaxParticipants               *int       `json:"max_participants,omitempty" gorm:"default:null"`
+	ParticipationEstimatedEndDate *time.Time `json:"participation_estimated_end_date,omitempty" gorm:"type:date"`
+	VotingEstimatedEndDate        *time.Time `json:"voting_estimated_end_date,omitempty" gorm:"type:date"`
+	ShareableLink                 string     `json:"shareable_link,omitempty" gorm:"default:''"`
+	CreatedAt                     time.Time  `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt                     time.Time  `json:"updated_at" gorm:"autoUpdateTime"`
 }
 
 // TableName overrides the table name used by GORM
