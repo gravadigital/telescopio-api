@@ -96,6 +96,12 @@ func GetMigrations() []Migration {
 			Up:   migration013Up,
 			Down: migration013Down,
 		},
+		{
+			ID:   "014",
+			Name: "add_estimated_end_dates_to_events",
+			Up:   migration014Up,
+			Down: migration014Down,
+		},
 	}
 }
 

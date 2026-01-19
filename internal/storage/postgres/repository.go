@@ -1,6 +1,8 @@
 package postgres
 
 import (
+	"time"
+
 	"github.com/gravadigital/telescopio-api/internal/domain/attachment"
 	"github.com/gravadigital/telescopio-api/internal/domain/event"
 	"github.com/gravadigital/telescopio-api/internal/domain/participant"
@@ -53,6 +55,8 @@ type EventRepository interface {
 	Update(event *event.Event) error
 	Delete(id string) error
 	UpdateStage(eventID string, stage event.Stage) error
+	UpdateStageWithEstimatedDate(eventID string, stage event.Stage, estimatedDate *time.Time) error
+	UpdateEstimatedEndDate(eventID string, stage event.Stage, newDate time.Time) error
 	AddParticipant(eventID, userID string) error
 	AddParticipantWithRole(eventID, userID string, role event.EventParticipantRole) error
 	RemoveParticipant(eventID, userID string) error
