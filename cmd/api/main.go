@@ -129,6 +129,11 @@ func main() {
 				auth.RequireEventOwner(eventRepo),
 				eventHandler.UpdateEventStage)
 
+			// Update estimated end date - Only event owner
+			events.PATCH("/:event_id/estimated-end-date",
+				auth.RequireEventOwner(eventRepo),
+				eventHandler.UpdateEstimatedEndDate)
+
 			// Get event participants - Any authenticated user
 			events.GET("/:event_id/participants", eventHandler.GetEventParticipants)
 
