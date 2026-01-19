@@ -43,16 +43,18 @@ func (e *Event) BeforeCreate(tx *gorm.DB) error {
 
 // NewEvent creates a new event with the given parameters
 func NewEvent(name, description string, authorID uuid.UUID, startDate, endDate time.Time, organizer string) *Event {
+	id := uuid.New()
 	return &Event{
-		ID:          uuid.New(),
-		Name:        name,
-		Description: description,
-		AuthorID:    authorID,
-		StartDate:   startDate,
-		EndDate:     endDate,
-		Organizer:   organizer,
-		Stage:       StageCreation,
-		CreatedAt:   time.Now(),
+		ID:            id,
+		Name:          name,
+		Description:   description,
+		AuthorID:      authorID,
+		StartDate:     startDate,
+		EndDate:       endDate,
+		Organizer:     organizer,
+		Stage:         StageCreation,
+		ShareableLink: "/events/" + id.String(),
+		CreatedAt:     time.Now(),
 	}
 }
 
