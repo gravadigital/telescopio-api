@@ -32,11 +32,12 @@ type CreateUserRequest struct {
 	Name     string `json:"name" binding:"required,min=2,max=100"`
 	LastName string `json:"lastname,omitempty"`
 	Email    string `json:"email" binding:"required,email"`
+	Password string `json:"password" binding:"required,min=8"`
 }
 
 type AuthenticateUserRequest struct {
-	Email string `json:"email" binding:"required,email"`
-	Name  string `json:"name,omitempty"`
+	Email    string `json:"email" binding:"required,email"`
+	Password string `json:"password" binding:"required"`
 }
 
 // CreateUser handles POST /api/v1/users
@@ -57,31 +58,10 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 	// Check if user already exists
 	existingUser, err := h.userRepo.GetByEmail(req.Email)
 	if err == nil && existingUser != nil {
-		h.log.Info("user already exists", "email", req.Email)
-
-		// Generate JWT token
-		token, err := auth.GenerateToken(existingUser.ID, existingUser.Email, existingUser.Role)
-		if err != nil {
-			h.log.Error("failed to generate token", "error", err)
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "Failed to generate authentication token",
-				"code":  "TOKEN_GENERATION_ERROR",
-			})
-			return
-		}
-
-		// Return existing user with token
-		c.JSON(http.StatusOK, gin.H{
-			"message": "User already exists",
-			"token":   token,
-			"user": gin.H{
-				"id":         existingUser.ID.String(),
-				"name":       existingUser.Name,
-				"lastname":   existingUser.LastName,
-				"email":      existingUser.Email,
-				"role":       existingUser.Role.String(),
-				"created_at": existingUser.CreatedAt,
-			},
+		h.log.Warn("attempt to register with existing email", "email", req.Email)
+		c.JSON(http.StatusConflict, gin.H{
+			"error": "User with this email already exists",
+			"code":  "EMAIL_ALREADY_EXISTS",
 		})
 		return
 	}
@@ -92,6 +72,16 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 		LastName: req.LastName,
 		Email:    req.Email,
 		Role:     participant.RoleParticipant, // All users are participants by default
+	}
+
+	// Hash password
+	if err := user.SetPassword(req.Password); err != nil {
+		h.log.Error("failed to hash password", "error", err)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+			"code":  "INVALID_PASSWORD",
+		})
+		return
 	}
 
 	err = h.userRepo.Create(user)
@@ -148,68 +138,31 @@ func (h *UserHandler) AuthenticateUser(c *gin.Context) {
 
 	// Try to find existing user
 	existingUser, err := h.userRepo.GetByEmail(req.Email)
-	if err == nil && existingUser != nil {
-		h.log.Info("user authenticated", "email", req.Email)
-
-		// Generate JWT token
-		token, err := auth.GenerateToken(existingUser.ID, existingUser.Email, existingUser.Role)
-		if err != nil {
-			h.log.Error("failed to generate token", "error", err)
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "Failed to generate authentication token",
-				"code":  "TOKEN_GENERATION_ERROR",
-			})
-			return
-		}
-
-		c.JSON(http.StatusOK, gin.H{
-			"message": "User authenticated successfully",
-			"token":   token,
-			"user": gin.H{
-				"id":         existingUser.ID.String(),
-				"name":       existingUser.Name,
-				"lastname":   existingUser.LastName,
-				"email":      existingUser.Email,
-				"role":       existingUser.Role.String(),
-				"created_at": existingUser.CreatedAt,
-			},
+	if err != nil || existingUser == nil {
+		h.log.Warn("authentication failed: user not found", "email", req.Email)
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "Invalid email or password",
+			"code":  "INVALID_CREDENTIALS",
 		})
 		return
 	}
 
-	// User doesn't exist, create new one if name is provided
-	if req.Name == "" {
-		h.log.Warn("user not found and no name provided", "email", req.Email)
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "User not found and name is required for registration",
-			"code":  "USER_NOT_FOUND",
+	// Verify password
+	if !existingUser.CheckPassword(req.Password) {
+		h.log.Warn("authentication failed: invalid password", "email", req.Email)
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "Invalid email or password",
+			"code":  "INVALID_CREDENTIALS",
 		})
 		return
 	}
 
-	// Create new user
-	user := &participant.User{
-		Name:  req.Name,
-		Email: req.Email,
-		Role:  participant.RoleParticipant,
-	}
+	h.log.Info("user authenticated successfully", "email", req.Email, "user_id", existingUser.ID)
 
-	err = h.userRepo.Create(user)
+	// Generate JWT token
+	token, err := auth.GenerateToken(existingUser.ID, existingUser.Email, existingUser.Role)
 	if err != nil {
-		h.log.Error("failed to create user during authentication", "error", err, "email", req.Email)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to create user",
-			"code":  "CREATION_ERROR",
-		})
-		return
-	}
-
-	h.log.Info("new user created during authentication", "id", user.ID, "email", user.Email)
-
-	// Generate JWT token for new user
-	token, err := auth.GenerateToken(user.ID, user.Email, user.Role)
-	if err != nil {
-		h.log.Error("failed to generate token for new user", "error", err)
+		h.log.Error("failed to generate token", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to generate authentication token",
 			"code":  "TOKEN_GENERATION_ERROR",
@@ -217,16 +170,16 @@ func (h *UserHandler) AuthenticateUser(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
-		"message": "User created and authenticated successfully",
+	c.JSON(http.StatusOK, gin.H{
+		"message": "User authenticated successfully",
 		"token":   token,
 		"user": gin.H{
-			"id":         user.ID.String(),
-			"name":       user.Name,
-			"lastname":   user.LastName,
-			"email":      user.Email,
-			"role":       user.Role.String(),
-			"created_at": user.CreatedAt,
+			"id":         existingUser.ID.String(),
+			"name":       existingUser.Name,
+			"lastname":   existingUser.LastName,
+			"email":      existingUser.Email,
+			"role":       existingUser.Role.String(),
+			"created_at": existingUser.CreatedAt,
 		},
 	})
 }

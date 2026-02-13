@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
@@ -29,13 +30,14 @@ func (r Role) IsValid() bool {
 
 // User represents a system user (admin or participant)
 type User struct {
-	ID        uuid.UUID `json:"id" gorm:"type:uuid;primaryKey;default:uuid_generate_v4()"`
-	Name      string    `json:"name" gorm:"not null"`
-	LastName  string    `json:"lastname" gorm:"column:lastname"`
-	Email     string    `json:"email" gorm:"uniqueIndex;not null"`
-	Role      Role      `json:"role" gorm:"type:varchar(20);not null;default:'participant'"`
-	CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt time.Time `json:"updated_at" gorm:"autoUpdateTime"`
+	ID           uuid.UUID `json:"id" gorm:"type:uuid;primaryKey;default:uuid_generate_v4()"`
+	Name         string    `json:"name" gorm:"not null"`
+	LastName     string    `json:"lastname" gorm:"column:lastname"`
+	Email        string    `json:"email" gorm:"uniqueIndex;not null"`
+	PasswordHash string    `json:"-" gorm:"column:password_hash;not null"`
+	Role         Role      `json:"role" gorm:"type:varchar(20);not null;default:'participant'"`
+	CreatedAt    time.Time `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt    time.Time `json:"updated_at" gorm:"autoUpdateTime"`
 }
 
 // TableName overrides the table name used by GORM
@@ -85,6 +87,30 @@ func (u *User) GetFullName() string {
 		return u.Name
 	}
 	return fmt.Sprintf("%s %s", u.Name, u.LastName)
+}
+
+// SetPassword hashes and sets the user's password
+func (u *User) SetPassword(password string) error {
+	if len(password) < 8 {
+		return fmt.Errorf("password must be at least 8 characters")
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("failed to hash password: %w", err)
+	}
+
+	u.PasswordHash = string(hash)
+	return nil
+}
+
+// CheckPassword verifies if the provided password matches the hash
+func (u *User) CheckPassword(password string) bool {
+	if u.PasswordHash == "" {
+		return false
+	}
+	err := bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(password))
+	return err == nil
 }
 
 // UpdateRole safely updates the user role with validation
