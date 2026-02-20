@@ -29,6 +29,17 @@ type Config struct {
 		MaxFileSize int64
 	}
 
+	Storage struct {
+		Provider        string // "local" or "minio"
+		LocalPath       string
+		MinIOEndpoint   string
+		MinIOAccessKey  string
+		MinIOSecretKey  string
+		MinIOBucket     string
+		MinIOUseSSL     bool
+		MinIORegion     string
+	}
+
 	CORS struct {
 		AllowOrigins string
 		AllowMethods string
@@ -56,6 +67,16 @@ func Load() *Config {
 	config.Upload.Dir = getEnv("UPLOADS_DIR", "./uploads")
 	config.Upload.MaxFileSize = getEnvAsInt64("MAX_FILE_SIZE", 10485760)
 
+	// Storage configuration
+	config.Storage.Provider = getEnv("STORAGE_PROVIDER", "local") // "local" or "minio"
+	config.Storage.LocalPath = getEnv("STORAGE_LOCAL_PATH", "./uploads")
+	config.Storage.MinIOEndpoint = getEnv("MINIO_ENDPOINT", "localhost:9000")
+	config.Storage.MinIOAccessKey = getEnv("MINIO_ACCESS_KEY", "")
+	config.Storage.MinIOSecretKey = getEnv("MINIO_SECRET_KEY", "")
+	config.Storage.MinIOBucket = getEnv("MINIO_BUCKET", "telescopio")
+	config.Storage.MinIOUseSSL = getEnvAsBool("MINIO_USE_SSL", false)
+	config.Storage.MinIORegion = getEnv("MINIO_REGION", "us-east-1")
+
 	config.CORS.AllowOrigins = getEnv("CORS_ALLOW_ORIGINS", "*")
 	config.CORS.AllowMethods = getEnv("CORS_ALLOW_METHODS", "GET,POST,PUT,PATCH,DELETE,HEAD,OPTIONS")
 	config.CORS.AllowHeaders = getEnv("CORS_ALLOW_HEADERS", "Origin,Content-Length,Content-Type,Authorization")
@@ -81,6 +102,16 @@ func getEnvAsInt64(key string, defaultValue int64) int64 {
 	if value := os.Getenv(key); value != "" {
 		if intValue, err := strconv.ParseInt(value, 10, 64); err == nil {
 			return intValue
+		}
+	}
+	return defaultValue
+}
+
+// getEnvAsBool gets an environment variable as bool or returns a default value
+func getEnvAsBool(key string, defaultValue bool) bool {
+	if value := os.Getenv(key); value != "" {
+		if boolValue, err := strconv.ParseBool(value); err == nil {
+			return boolValue
 		}
 	}
 	return defaultValue

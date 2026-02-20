@@ -11,6 +11,7 @@ import (
 	"github.com/gravadigital/telescopio-api/internal/logger"
 	"github.com/gravadigital/telescopio-api/internal/middleware/auth"
 	"github.com/gravadigital/telescopio-api/internal/middleware/events"
+	"github.com/gravadigital/telescopio-api/internal/storage"
 	"github.com/gravadigital/telescopio-api/internal/storage/postgres"
 )
 
@@ -54,8 +55,15 @@ func main() {
 	attachmentRepo := postgres.NewPostgresAttachmentRepository(db)
 	voteRepo := postgres.NewPostgresVoteRepository(db)
 
+	// Initialize file storage
+	fileStorage, err := storage.NewFileStorage(cfg)
+	if err != nil {
+		log.Fatal("Failed to initialize file storage", "error", err)
+	}
+	log.Info("File storage initialized", "provider", cfg.Storage.Provider)
+
 	eventHandler := handlers.NewEventHandler(eventRepo, userRepo, attachmentRepo, cfg)
-	attachmentHandler := handlers.NewAttachmentHandler(attachmentRepo, eventRepo, userRepo, cfg)
+	attachmentHandler := handlers.NewAttachmentHandler(attachmentRepo, eventRepo, userRepo, fileStorage, cfg)
 	userHandler := handlers.NewUserHandler(userRepo, eventRepo, cfg)
 
 	configRepo := postgres.NewPostgresVotingConfigurationRepository(db)

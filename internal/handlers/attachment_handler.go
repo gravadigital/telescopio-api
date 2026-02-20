@@ -1,10 +1,10 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -16,6 +16,7 @@ import (
 	"github.com/gravadigital/telescopio-api/internal/domain/attachment"
 	"github.com/gravadigital/telescopio-api/internal/domain/event"
 	"github.com/gravadigital/telescopio-api/internal/logger"
+	"github.com/gravadigital/telescopio-api/internal/storage"
 	"github.com/gravadigital/telescopio-api/internal/storage/postgres"
 )
 
@@ -23,15 +24,17 @@ type AttachmentHandler struct {
 	attachmentRepo postgres.AttachmentRepository
 	eventRepo      postgres.EventRepository
 	userRepo       postgres.UserRepository
+	fileStorage    storage.FileStorage
 	config         *config.Config
 	log            *log.Logger
 }
 
-func NewAttachmentHandler(attachmentRepo postgres.AttachmentRepository, eventRepo postgres.EventRepository, userRepo postgres.UserRepository, cfg *config.Config) *AttachmentHandler {
+func NewAttachmentHandler(attachmentRepo postgres.AttachmentRepository, eventRepo postgres.EventRepository, userRepo postgres.UserRepository, fileStorage storage.FileStorage, cfg *config.Config) *AttachmentHandler {
 	return &AttachmentHandler{
 		attachmentRepo: attachmentRepo,
 		eventRepo:      eventRepo,
 		userRepo:       userRepo,
+		fileStorage:    fileStorage,
 		config:         cfg,
 		log:            logger.Handler("attachment"),
 	}
@@ -226,49 +229,14 @@ func (h *AttachmentHandler) UploadAttachment(c *gin.Context) {
 	ext := filepath.Ext(cleanFilename)
 	secureFilename := fmt.Sprintf("%s_%s_%d%s", eventID, participantID, time.Now().Unix(), ext)
 
-	// Create uploads directory if it doesn't exist
-	uploadsDir := h.config.Upload.Dir
-	if err := os.MkdirAll(uploadsDir, 0755); err != nil {
-		h.log.Error("failed to create uploads directory", "dir", uploadsDir, "error", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to create uploads directory",
-			"code":  "UPLOAD_DIR_ERROR",
-		})
-		return
-	}
-
-	// Save file to disk
-	filePath := filepath.Join(uploadsDir, secureFilename)
-	dst, err := os.Create(filePath)
+	// Use FileStorage interface to save the file
+	ctx := context.Background()
+	storageKey, err := h.fileStorage.Put(ctx, secureFilename, file, header.Size, contentType)
 	if err != nil {
-		h.log.Error("failed to create file", "path", filePath, "error", err)
+		h.log.Error("failed to store file", "key", secureFilename, "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to create file",
-			"code":  "FILE_CREATE_ERROR",
-		})
-		return
-	}
-	defer dst.Close()
-
-	bytesWritten, err := io.Copy(dst, file)
-	if err != nil {
-		h.log.Error("failed to save file", "path", filePath, "error", err)
-		// Clean up the partially written file
-		os.Remove(filePath)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to save file",
+			"error": "Failed to save file to storage",
 			"code":  "FILE_SAVE_ERROR",
-		})
-		return
-	}
-
-	// Verify written size matches expected size
-	if bytesWritten != header.Size {
-		h.log.Error("file size mismatch", "expected", header.Size, "written", bytesWritten)
-		os.Remove(filePath)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "File size mismatch during upload",
-			"code":  "SIZE_MISMATCH",
 		})
 		return
 	}
@@ -279,7 +247,7 @@ func (h *AttachmentHandler) UploadAttachment(c *gin.Context) {
 		participantUUID,
 		secureFilename,
 		cleanFilename,
-		filePath,
+		storageKey, // Use storage key instead of file path
 		contentType,
 		header.Size,
 	)
@@ -287,7 +255,9 @@ func (h *AttachmentHandler) UploadAttachment(c *gin.Context) {
 	if err := h.attachmentRepo.Create(newAttachment); err != nil {
 		h.log.Error("failed to save attachment metadata", "attachment_id", newAttachment.ID, "error", err)
 		// Clean up the file if database operation fails
-		os.Remove(filePath)
+		if delErr := h.fileStorage.Delete(ctx, storageKey); delErr != nil {
+			h.log.Error("failed to cleanup file after db error", "key", storageKey, "error", delErr)
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to save attachment metadata",
 			"code":  "DB_SAVE_ERROR",
@@ -400,15 +370,18 @@ func (h *AttachmentHandler) DownloadAttachment(c *gin.Context) {
 		return
 	}
 
-	// Check if file exists on disk
-	if _, err := os.Stat(attachment.FilePath); os.IsNotExist(err) {
-		h.log.Error("file not found on disk", "attachment_id", attachmentID, "file_path", attachment.FilePath)
+	// Get file from storage
+	ctx := context.Background()
+	fileReader, err := h.fileStorage.Get(ctx, attachment.FilePath)
+	if err != nil {
+		h.log.Error("file not found in storage", "attachment_id", attachmentID, "storage_key", attachment.FilePath, "error", err)
 		c.JSON(http.StatusNotFound, gin.H{
-			"error": "File not found on server",
+			"error": "File not found in storage",
 			"code":  "FILE_NOT_FOUND",
 		})
 		return
 	}
+	defer fileReader.Close()
 
 	// Set appropriate headers for file download
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", attachment.OriginalName))
@@ -416,7 +389,12 @@ func (h *AttachmentHandler) DownloadAttachment(c *gin.Context) {
 	c.Header("Content-Length", fmt.Sprintf("%d", attachment.FileSize))
 
 	h.log.Info("serving file download", "attachment_id", attachmentID, "filename", attachment.OriginalName)
-	c.File(attachment.FilePath)
+	
+	// Stream the file to the response
+	if _, err := io.Copy(c.Writer, fileReader); err != nil {
+		h.log.Error("failed to stream file", "attachment_id", attachmentID, "error", err)
+		return
+	}
 }
 
 // DeleteAttachment handles DELETE /api/attachments/{attachment_id}
@@ -480,9 +458,10 @@ func (h *AttachmentHandler) DeleteAttachment(c *gin.Context) {
 		return
 	}
 
-	// Delete file from disk
-	if err := os.Remove(attachment.FilePath); err != nil {
-		h.log.Warn("failed to delete file from disk", "attachment_id", attachmentID, "file_path", attachment.FilePath, "error", err)
+	// Delete file from storage
+	ctx := context.Background()
+	if err := h.fileStorage.Delete(ctx, attachment.FilePath); err != nil {
+		h.log.Warn("failed to delete file from storage", "attachment_id", attachmentID, "storage_key", attachment.FilePath, "error", err)
 		// Don't fail the request if file deletion fails, as DB record is already deleted
 	}
 
