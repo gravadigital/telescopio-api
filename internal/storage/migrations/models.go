@@ -64,13 +64,14 @@ func (ur UserRole) Value() (driver.Value, error) {
 
 // User represents participants in the voting system
 type User struct {
-	ID        uuid.UUID `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
-	Name      string    `gorm:"not null" json:"name"`
-	Lastname  string    `gorm:"column:lastname" json:"lastname"`
-	Email     string    `gorm:"uniqueIndex;not null" json:"email"`
-	Role      UserRole  `gorm:"type:user_role;not null;default:'participant'" json:"role"`
-	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+	ID           uuid.UUID `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
+	Name         string    `gorm:"not null" json:"name"`
+	Lastname     string    `gorm:"column:lastname" json:"lastname"`
+	Email        string    `gorm:"uniqueIndex;not null" json:"email"`
+	PasswordHash string    `gorm:"column:password_hash;not null" json:"-"`
+	Role         UserRole  `gorm:"type:user_role;not null;default:'participant'" json:"role"`
+	CreatedAt    time.Time `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt    time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 
 	// Relations
 	AuthoredEvents []Event            `gorm:"foreignKey:AuthorID" json:"authored_events,omitempty"`
