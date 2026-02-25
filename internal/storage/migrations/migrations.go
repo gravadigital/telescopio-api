@@ -102,6 +102,18 @@ func GetMigrations() []Migration {
 			Up:   migration014Up,
 			Down: migration014Down,
 		},
+		{
+			ID:   "015",
+			Name: "add_password_hash_to_users",
+			Up:   migration015Up,
+			Down: migration015Down,
+		},
+		{
+			ID:   "016",
+			Name: "add_vote_drafts",
+			Up:   migration016Up,
+			Down: migration016Down,
+		},
 	}
 }
 
