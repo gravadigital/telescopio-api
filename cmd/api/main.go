@@ -62,6 +62,9 @@ func main() {
 	resultsRepo := postgres.NewPostgresVotingResultsRepository(db)
 	distributedVoteHandler := handlers.NewDistributedVoteHandler(voteRepo, eventRepo, attachmentRepo, userRepo, configRepo, resultsRepo, cfg)
 
+	voteDraftRepo := postgres.NewPostgresVoteDraftRepository(db)
+	voteDraftHandler := handlers.NewVoteDraftHandler(voteDraftRepo, voteRepo)
+
 	// Test database connection
 	router.GET("/health", func(c *gin.Context) {
 		sqlDB, err := db.DB()
@@ -164,6 +167,14 @@ func main() {
 			events.POST("/:event_id/participants/:participant_id/ranking-votes",
 				auth.RequireParticipantOrOwner(eventRepo),
 				distributedVoteHandler.SubmitRankingVotes)
+
+			// Vote draft - save/restore partial ranking selections before submit
+			events.PUT("/:event_id/participants/:participant_id/vote-draft",
+				auth.RequireParticipantOrOwner(eventRepo),
+				voteDraftHandler.SaveDraft)
+			events.GET("/:event_id/participants/:participant_id/vote-draft",
+				auth.RequireParticipantOrOwner(eventRepo),
+				voteDraftHandler.GetDraft)
 
 			// Get results - Any authenticated user
 			events.GET("/:event_id/distributed-results", distributedVoteHandler.GetDistributedResults)

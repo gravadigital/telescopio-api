@@ -3,6 +3,7 @@ package postgres
 import (
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravadigital/telescopio-api/internal/domain/attachment"
 	"github.com/gravadigital/telescopio-api/internal/domain/event"
 	"github.com/gravadigital/telescopio-api/internal/domain/participant"
@@ -121,6 +122,12 @@ type VotingConfigurationRepository interface {
 	Update(config *vote.VotingConfiguration) error
 	Delete(eventID string) error
 	ValidateConfiguration(config *vote.VotingConfiguration) error
+}
+
+// VoteDraftRepository defines methods for persisting partial voting selections
+type VoteDraftRepository interface {
+	Upsert(draft *vote.VoteDraft) error
+	GetByAssignmentAndParticipant(assignmentID, participantID uuid.UUID) (*vote.VoteDraft, error)
 }
 
 // VotingResultsRepository define los métodos para interactuar con resultados de votación
