@@ -33,9 +33,6 @@ COPY --from=builder /etc/passwd /etc/passwd
 # Copy the binary
 COPY --from=builder /build/main /app/main
 
-# Create uploads directory
-COPY --from=builder --chown=appuser:appuser /tmp /app/uploads
-
 # Use an unprivileged user
 USER appuser
 
