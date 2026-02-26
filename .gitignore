@@ -67,3 +67,9 @@ coverage.html
 tmp/
 
 /docs
+# Compiled binaries
+api
+bin/
+*.test
+telescopo-api
+main
