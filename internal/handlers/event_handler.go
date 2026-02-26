@@ -1054,6 +1054,14 @@ func (h *EventHandler) GetEvent(c *gin.Context) {
 		h.log.Warn("failed to get event attachments", "event_id", eventID, "error", err)
 	}
 
+	// Resolve organizer: use stored value or fall back to creator's username
+	organizer := eventObj.Organizer
+	if organizer == "" {
+		if author, err := h.userRepo.GetByID(eventObj.AuthorID.String()); err == nil {
+			organizer = author.Name
+		}
+	}
+
 	response := gin.H{
 		"data": gin.H{
 			"id":                               eventObj.ID.String(),
@@ -1063,6 +1071,7 @@ func (h *EventHandler) GetEvent(c *gin.Context) {
 			"end_date":                         eventObj.EndDate.Format("2006-01-02"),
 			"stage":                            eventObj.Stage.String(),
 			"author_id":                        eventObj.AuthorID.String(),
+			"organizer":                        organizer,
 			"max_participants":                 eventObj.MaxParticipants,
 			"participation_estimated_end_date": formatDatePtr(eventObj.ParticipationEstimatedEndDate),
 			"voting_estimated_end_date":        formatDatePtr(eventObj.VotingEstimatedEndDate),
