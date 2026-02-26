@@ -70,12 +70,12 @@ func (s *MinIOStorage) Put(ctx context.Context, key string, reader io.Reader, si
 		return "", fmt.Errorf("failed to upload to MinIO: %w", err)
 	}
 
-	s.log.Debug("file stored successfully", 
-		"key", key, 
-		"size", info.Size, 
+	s.log.Debug("file stored successfully",
+		"key", key,
+		"size", info.Size,
 		"etag", info.ETag,
 		"bucket", s.bucketName)
-	
+
 	return key, nil
 }
 
@@ -108,7 +108,7 @@ func (s *MinIOStorage) Delete(ctx context.Context, key string) error {
 
 func (s *MinIOStorage) GetURL(ctx context.Context, key string) (string, error) {
 	expiry := 7 * 24 * time.Hour
-	
+
 	url, err := s.client.PresignedGetObject(ctx, s.bucketName, key, expiry, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate presigned URL: %w", err)

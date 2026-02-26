@@ -30,14 +30,14 @@ type Config struct {
 	}
 
 	Storage struct {
-		Provider        string // "local" or "minio"
-		LocalPath       string
-		MinIOEndpoint   string
-		MinIOAccessKey  string
-		MinIOSecretKey  string
-		MinIOBucket     string
-		MinIOUseSSL     bool
-		MinIORegion     string
+		Provider       string // "local" or "minio"
+		LocalPath      string
+		MinIOEndpoint  string
+		MinIOAccessKey string
+		MinIOSecretKey string
+		MinIOBucket    string
+		MinIOUseSSL    bool
+		MinIORegion    string
 	}
 
 	CORS struct {

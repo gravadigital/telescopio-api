@@ -15,16 +15,16 @@ type FileStorage interface {
 }
 
 type FileInfo struct {
-	Key         string
-	Size        int64
-	ContentType string
-	ETag        string
+	Key          string
+	Size         int64
+	ContentType  string
+	ETag         string
 	LastModified string
 }
 
 type StorageConfig struct {
-	Provider string
-	LocalPath string
+	Provider        string
+	LocalPath       string
 	Endpoint        string
 	AccessKeyID     string
 	SecretAccessKey string
