@@ -88,7 +88,7 @@ func resolveUser(profile *GoogleProfile, userRepo postgres.UserRepository) (*Use
 	if err == nil {
 		return &UserResolution{Status: "existing_user", User: user}, nil
 	}
-	if !errors.Is(err, errors.New("user not found")) && err.Error() != "user not found" {
+	if err.Error() != "user not found" {
 		return nil, fmt.Errorf("failed to look up user by google_id: %w", err)
 	}
 

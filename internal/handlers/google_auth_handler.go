@@ -38,7 +38,7 @@ type VerifyGoogleTokenRequest struct {
 // RegisterGoogleUserRequest is the request body for POST /auth/google/register.
 type RegisterGoogleUserRequest struct {
 	Token    string `json:"token" binding:"required"`
-	Username string `json:"username" binding:"required,min=2,max=100"`
+	Username string `json:"username" binding:"required,min=2,max=100,excludesall=\t\n\r"`
 }
 
 // VerifyGoogleToken handles POST /api/v1/auth/google/verify.
