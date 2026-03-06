@@ -45,6 +45,10 @@ type Config struct {
 		AllowMethods string
 		AllowHeaders string
 	}
+
+	Google struct {
+		ClientID string
+	}
 }
 
 // Load loads configuration from environment variables
@@ -80,6 +84,8 @@ func Load() *Config {
 	config.CORS.AllowOrigins = getEnv("CORS_ALLOW_ORIGINS", "*")
 	config.CORS.AllowMethods = getEnv("CORS_ALLOW_METHODS", "GET,POST,PUT,PATCH,DELETE,HEAD,OPTIONS")
 	config.CORS.AllowHeaders = getEnv("CORS_ALLOW_HEADERS", "Origin,Content-Length,Content-Type,Authorization")
+
+	config.Google.ClientID = getEnv("GOOGLE_CLIENT_ID", "")
 
 	return config
 }
