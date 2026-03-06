@@ -71,12 +71,14 @@ type UserRepository interface {
 	Create(user *participant.User) error
 	GetByID(id string) (*participant.User, error)
 	GetByEmail(email string) (*participant.User, error)
+	GetByGoogleID(googleID string) (*participant.User, error)
 	GetAll() ([]*participant.User, error)
 	GetAllPaginated(params PaginationParams) (*PaginatedResult, error)
 	Update(user *participant.User) error
 	Delete(id string) error
 	GetEventParticipants(eventID string) ([]*participant.UserWithEventRole, error)
 	GetEventParticipantsPaginated(eventID string, params PaginationParams) (*PaginatedResult, error)
+	UsernameExists(username string) (bool, error)
 }
 
 // AttachmentRepository define los métodos para interactuar con los archivos adjuntos

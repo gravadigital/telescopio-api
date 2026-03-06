@@ -65,6 +65,7 @@ func main() {
 	eventHandler := handlers.NewEventHandler(eventRepo, userRepo, attachmentRepo, cfg)
 	attachmentHandler := handlers.NewAttachmentHandler(attachmentRepo, eventRepo, userRepo, fileStorage, cfg)
 	userHandler := handlers.NewUserHandler(userRepo, eventRepo, cfg)
+	googleAuthHandler := handlers.NewGoogleAuthHandler(userRepo, cfg)
 
 	configRepo := postgres.NewPostgresVotingConfigurationRepository(db)
 	resultsRepo := postgres.NewPostgresVotingResultsRepository(db)
@@ -109,6 +110,13 @@ func main() {
 		{
 			users.POST("", userHandler.CreateUser)                    // Register new user (returns JWT)
 			users.POST("/authenticate", userHandler.AuthenticateUser) // Login (returns JWT)
+		}
+
+		// Google OAuth - Public endpoints (no auth required)
+		googleAuth := api.Group("/auth/google")
+		{
+			googleAuth.POST("/verify", googleAuthHandler.VerifyGoogleToken)
+			googleAuth.POST("/register", googleAuthHandler.RegisterGoogleUser)
 		}
 
 	// Protected user endpoints (require authentication)
