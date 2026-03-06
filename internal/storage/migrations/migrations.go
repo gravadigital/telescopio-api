@@ -114,6 +114,12 @@ func GetMigrations() []Migration {
 			Up:   migration016Up,
 			Down: migration016Down,
 		},
+		{
+			ID:   "017",
+			Name: "add_google_oauth_support",
+			Up:   migration017Up,
+			Down: migration017Down,
+		},
 	}
 }
 
