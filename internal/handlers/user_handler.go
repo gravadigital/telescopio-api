@@ -147,6 +147,16 @@ func (h *UserHandler) AuthenticateUser(c *gin.Context) {
 		return
 	}
 
+	// Check if the user has a password (OAuth accounts don't)
+	if existingUser.PasswordHash == nil {
+		h.log.Warn("authentication failed: user has no password (OAuth account)", "email", req.Email)
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "Esta cuenta fue creada con Google. Por favor usá el botón 'Continuar con Google' para iniciar sesión.",
+			"code":  "OAUTH_ACCOUNT_NO_PASSWORD",
+		})
+		return
+	}
+
 	// Verify password
 	if !existingUser.CheckPassword(req.Password) {
 		h.log.Warn("authentication failed: invalid password", "email", req.Email)
