@@ -40,6 +40,15 @@ type googleTokenInfoResponse struct {
 	ErrorDescription string `json:"error_description"`
 }
 
+// googleUserInfoResponse maps the relevant fields from the Google userinfo endpoint.
+type googleUserInfoResponse struct {
+	Sub           string `json:"sub"`
+	Email         string `json:"email"`
+	Name          string `json:"name"`
+	EmailVerified bool   `json:"email_verified"`
+	Error         string `json:"error"`
+}
+
 // verifyGoogleToken calls the Google tokeninfo endpoint to validate an id_token.
 // It verifies that the token's aud matches clientID.
 // Returns ErrInvalidGoogleToken for bad/expired tokens, ErrGoogleAPIUnavailable for network errors.
@@ -65,6 +74,47 @@ func verifyGoogleToken(token, clientID string) (*GoogleProfile, error) {
 	}
 
 	if clientID != "" && info.Aud != clientID {
+		return nil, ErrInvalidGoogleToken
+	}
+
+	if info.Sub == "" || info.Email == "" {
+		return nil, ErrInvalidGoogleToken
+	}
+
+	return &GoogleProfile{
+		GoogleID: info.Sub,
+		Email:    info.Email,
+		Name:     info.Name,
+	}, nil
+}
+
+// verifyGoogleAccessToken calls the Google userinfo endpoint to validate an access_token.
+// Returns ErrInvalidGoogleToken for bad/expired tokens, ErrGoogleAPIUnavailable for network errors.
+func verifyGoogleAccessToken(accessToken string) (*GoogleProfile, error) {
+	req, err := http.NewRequest("GET", "https://www.googleapis.com/oauth2/v3/userinfo", nil)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrGoogleAPIUnavailable, err)
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrGoogleAPIUnavailable, err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("%w: failed to read response body: %v", ErrGoogleAPIUnavailable, err)
+	}
+
+	var info googleUserInfoResponse
+	if err := json.Unmarshal(body, &info); err != nil {
+		return nil, fmt.Errorf("%w: failed to parse response: %v", ErrGoogleAPIUnavailable, err)
+	}
+
+	if resp.StatusCode != http.StatusOK || info.Error != "" {
 		return nil, ErrInvalidGoogleToken
 	}
 

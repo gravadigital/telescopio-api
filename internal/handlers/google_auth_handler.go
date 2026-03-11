@@ -56,7 +56,7 @@ func (h *GoogleAuthHandler) VerifyGoogleToken(c *gin.Context) {
 		return
 	}
 
-	profile, err := verifyGoogleToken(req.Token, h.cfg.Google.ClientID)
+	profile, err := verifyGoogleAccessToken(req.Token)
 	if err != nil {
 		if errors.Is(err, ErrInvalidGoogleToken) {
 			h.log.Warn("invalid google token received", "error", err)
@@ -135,7 +135,7 @@ func (h *GoogleAuthHandler) RegisterGoogleUser(c *gin.Context) {
 	}
 
 	// Re-validate the Google token to prevent account creation with intercepted tokens
-	profile, err := verifyGoogleToken(req.Token, h.cfg.Google.ClientID)
+	profile, err := verifyGoogleAccessToken(req.Token)
 	if err != nil {
 		if errors.Is(err, ErrInvalidGoogleToken) {
 			h.log.Warn("invalid google token in registration", "error", err)
