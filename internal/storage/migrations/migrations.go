@@ -116,9 +116,15 @@ func GetMigrations() []Migration {
 		},
 		{
 			ID:   "017",
-			Name: "add_is_cancelled_to_events",
+			Name: "add_google_oauth_support",
 			Up:   migration017Up,
 			Down: migration017Down,
+		},
+		{
+			ID:   "018",
+			Name: "add_is_cancelled_to_events",
+			Up:   migration018Up,
+			Down: migration018Down,
 		},
 	}
 }

@@ -56,6 +56,10 @@ type Config struct {
 		FromName     string
 		Secure       bool // true = SSL/TLS directo (puerto 465), false = STARTTLS (puerto 587)
 	}
+
+	Google struct {
+		ClientID string
+	}
 }
 
 // Load loads configuration from environment variables
@@ -100,6 +104,7 @@ func Load() *Config {
 	config.Email.FromAddress = getEnv("EMAIL_FROM", "")
 	config.Email.FromName = getEnv("EMAIL_FROM_NAME", "Telescopio")
 	config.Email.Secure = getEnvAsBool("SMTP_SECURE", false)
+	config.Google.ClientID = getEnv("GOOGLE_CLIENT_ID", "")
 
 	return config
 }

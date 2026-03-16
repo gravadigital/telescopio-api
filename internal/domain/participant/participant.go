@@ -34,7 +34,8 @@ type User struct {
 	Name         string    `json:"name" gorm:"not null"`
 	LastName     string    `json:"lastname" gorm:"column:lastname"`
 	Email        string    `json:"email" gorm:"uniqueIndex;not null"`
-	PasswordHash string    `json:"-" gorm:"column:password_hash;not null"`
+	PasswordHash *string   `json:"-" gorm:"column:password_hash"`
+	GoogleID     *string   `json:"google_id,omitempty" gorm:"column:google_id;uniqueIndex"`
 	Role         Role      `json:"role" gorm:"type:varchar(20);not null;default:'participant'"`
 	CreatedAt    time.Time `json:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt    time.Time `json:"updated_at" gorm:"autoUpdateTime"`
@@ -100,16 +101,17 @@ func (u *User) SetPassword(password string) error {
 		return fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	u.PasswordHash = string(hash)
+	hashStr := string(hash)
+	u.PasswordHash = &hashStr
 	return nil
 }
 
 // CheckPassword verifies if the provided password matches the hash
 func (u *User) CheckPassword(password string) bool {
-	if u.PasswordHash == "" {
+	if u.PasswordHash == nil || *u.PasswordHash == "" {
 		return false
 	}
-	err := bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(password))
+	err := bcrypt.CompareHashAndPassword([]byte(*u.PasswordHash), []byte(password))
 	return err == nil
 }
 

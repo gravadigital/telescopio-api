@@ -100,6 +100,27 @@ func (r *PostgresUserRepository) GetByEmail(email string) (*participant.User, er
 	return &user, nil
 }
 
+func (r *PostgresUserRepository) GetByGoogleID(googleID string) (*participant.User, error) {
+	r.log.Debug("retrieving user by google_id", "google_id", googleID)
+
+	if googleID == "" {
+		return nil, errors.New("google_id cannot be empty")
+	}
+
+	var user participant.User
+	if err := r.db.Where("google_id = ?", googleID).First(&user).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			r.log.Debug("User not found", "google_id", googleID)
+			return nil, errors.New("user not found")
+		}
+		r.log.Error("Failed to get user by google_id", "google_id", googleID, "error", err)
+		return nil, fmt.Errorf("failed to get user by google_id: %w", err)
+	}
+
+	r.log.Debug("User retrieved successfully", "id", user.ID, "google_id", googleID)
+	return &user, nil
+}
+
 func (r *PostgresUserRepository) GetAll() ([]*participant.User, error) {
 	var users []*participant.User
 	if err := r.db.Find(&users).Error; err != nil {
@@ -377,6 +398,25 @@ func (r *PostgresUserRepository) GetEventParticipantsPaginated(eventID string, p
 		"returned_count", len(users))
 
 	return result, nil
+}
+
+// UsernameExists checks if a user with the given username (Name field) already exists.
+func (r *PostgresUserRepository) UsernameExists(username string) (bool, error) {
+	r.log.Debug("checking if username exists", "username", username)
+
+	if username == "" {
+		return false, errors.New("username cannot be empty")
+	}
+
+	var count int64
+	if err := r.db.Model(&participant.User{}).Where("name = ?", username).Count(&count).Error; err != nil {
+		r.log.Error("failed to check username existence", "username", username, "error", err)
+		return false, fmt.Errorf("failed to check username existence: %w", err)
+	}
+
+	exists := count > 0
+	r.log.Debug("username existence check completed", "username", username, "exists", exists)
+	return exists, nil
 }
 
 // EmailExists checks if a user with the given email already exists
