@@ -64,6 +64,7 @@ type EventRepository interface {
 	GetParticipantRole(eventID, userID string) (*event.EventParticipantRole, error)
 	IsEventCreator(eventID, userID string) (bool, error)
 	IsEventParticipant(eventID, userID string) (bool, error)
+	CancelEvent(eventID string) error
 }
 
 // UserRepository define los métodos para interactuar con los usuarios en la DB.

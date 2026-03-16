@@ -7,6 +7,7 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/gravadigital/telescopio-api/internal/config"
+	"github.com/gravadigital/telescopio-api/internal/email"
 	"github.com/gravadigital/telescopio-api/internal/handlers"
 	"github.com/gravadigital/telescopio-api/internal/logger"
 	"github.com/gravadigital/telescopio-api/internal/middleware/auth"
@@ -62,7 +63,10 @@ func main() {
 	}
 	log.Info("File storage initialized", "provider", cfg.Storage.Provider)
 
-	eventHandler := handlers.NewEventHandler(eventRepo, userRepo, attachmentRepo, cfg)
+	emailService := email.NewEmailService(cfg)
+	log.Info("Email service initialized", "enabled", cfg.Email.Enabled)
+
+	eventHandler := handlers.NewEventHandler(eventRepo, userRepo, attachmentRepo, emailService, cfg)
 	attachmentHandler := handlers.NewAttachmentHandler(attachmentRepo, eventRepo, userRepo, fileStorage, cfg)
 	userHandler := handlers.NewUserHandler(userRepo, eventRepo, cfg)
 
@@ -144,6 +148,11 @@ func main() {
 			events.PATCH("/:event_id/estimated-end-date",
 				auth.RequireEventOwner(eventRepo),
 				eventHandler.UpdateEstimatedEndDate)
+
+			// Cancel event - Only event owner or admin
+			events.PATCH("/:event_id/cancel",
+				auth.RequireEventOwner(eventRepo),
+				eventHandler.CancelEvent)
 
 			// Get event participants - Any authenticated user
 			events.GET("/:event_id/participants", eventHandler.GetEventParticipants)

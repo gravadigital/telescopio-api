@@ -11,6 +11,7 @@ import (
 	"github.com/gravadigital/telescopio-api/internal/config"
 	"github.com/gravadigital/telescopio-api/internal/domain/event"
 	"github.com/gravadigital/telescopio-api/internal/domain/participant"
+	"github.com/gravadigital/telescopio-api/internal/email"
 	"github.com/gravadigital/telescopio-api/internal/logger"
 	"github.com/gravadigital/telescopio-api/internal/storage/postgres"
 )
@@ -19,15 +20,17 @@ type EventHandler struct {
 	eventRepo      postgres.EventRepository
 	userRepo       postgres.UserRepository
 	attachmentRepo postgres.AttachmentRepository
+	emailService   *email.EmailService
 	config         *config.Config
 	log            *log.Logger
 }
 
-func NewEventHandler(eventRepo postgres.EventRepository, userRepo postgres.UserRepository, attachmentRepo postgres.AttachmentRepository, cfg *config.Config) *EventHandler {
+func NewEventHandler(eventRepo postgres.EventRepository, userRepo postgres.UserRepository, attachmentRepo postgres.AttachmentRepository, emailService *email.EmailService, cfg *config.Config) *EventHandler {
 	return &EventHandler{
 		eventRepo:      eventRepo,
 		userRepo:       userRepo,
 		attachmentRepo: attachmentRepo,
+		emailService:   emailService,
 		config:         cfg,
 		log:            logger.Handler("event"),
 	}
@@ -443,6 +446,22 @@ func (h *EventHandler) UpdateEventStage(c *gin.Context) {
 		"event_id", eventID,
 		"old_stage", existingEvent.Stage.String(),
 		"new_stage", updatedEvent.Stage.String())
+
+	// Notify participants asynchronously — errors are logged but don't fail the request
+	go func() {
+		participants, err := h.userRepo.GetEventParticipants(updatedEvent.ID.String())
+		if err != nil {
+			h.log.Warn("failed to get participants for stage change email", "event_id", eventID, "error", err)
+			return
+		}
+		emails := make([]string, 0, len(participants))
+		for _, p := range participants {
+			emails = append(emails, p.Email)
+		}
+		if err := h.emailService.SendStageChangeNotification(updatedEvent.Name, updatedEvent.Stage.String(), emails); err != nil {
+			h.log.Warn("failed to send stage change emails", "event_id", eventID, "error", err)
+		}
+	}()
 
 	c.JSON(http.StatusOK, gin.H{
 		"data": gin.H{
@@ -1426,6 +1445,80 @@ func (h *EventHandler) GetShareableEventInfo(c *gin.Context) {
 			"twitter_description": description,
 			"twitter_image":       ogImageURL,
 		},
+	})
+}
+
+// CancelEvent handles PATCH /api/v1/events/{event_id}/cancel
+// Marks an event as cancelled and notifies all participants via email.
+func (h *EventHandler) CancelEvent(c *gin.Context) {
+	eventID := c.Param("event_id")
+
+	h.log.Debug("cancelling event", "event_id", eventID)
+
+	if _, err := uuid.Parse(eventID); err != nil {
+		h.log.Warn("invalid event_id format", "event_id", eventID, "error", err)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid event_id format",
+			"code":  "INVALID_EVENT_ID",
+		})
+		return
+	}
+
+	existingEvent, err := h.eventRepo.GetByID(eventID)
+	if err != nil {
+		h.log.Error("event not found", "event_id", eventID, "error", err)
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "Event not found",
+			"code":  "EVENT_NOT_FOUND",
+		})
+		return
+	}
+
+	if existingEvent.IsCancelled {
+		h.log.Warn("event already cancelled", "event_id", eventID)
+		c.JSON(http.StatusConflict, gin.H{
+			"error": "Event is already cancelled",
+			"code":  "ALREADY_CANCELLED",
+		})
+		return
+	}
+
+	if err := h.eventRepo.CancelEvent(eventID); err != nil {
+		h.log.Error("failed to cancel event", "event_id", eventID, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to cancel event",
+			"code":  "CANCEL_ERROR",
+		})
+		return
+	}
+
+	h.log.Info("event cancelled successfully", "event_id", eventID)
+
+	// Notify participants asynchronously
+	go func() {
+		participants, err := h.userRepo.GetEventParticipants(eventID)
+		if err != nil {
+			h.log.Warn("failed to get participants for cancellation email", "event_id", eventID, "error", err)
+			return
+		}
+		emails := make([]string, 0, len(participants))
+		for _, p := range participants {
+			emails = append(emails, p.Email)
+		}
+		if err := h.emailService.SendCancellationNotification(existingEvent.Name, emails); err != nil {
+			h.log.Warn("failed to send cancellation emails", "event_id", eventID, "error", err)
+		}
+	}()
+
+	c.JSON(http.StatusOK, gin.H{
+		"data": gin.H{
+			"id":           existingEvent.ID.String(),
+			"name":         existingEvent.Name,
+			"stage":        existingEvent.Stage.String(),
+			"is_cancelled": true,
+		},
+		"message": "Event cancelled successfully",
+		"code":    "EVENT_CANCELLED",
 	})
 }
 

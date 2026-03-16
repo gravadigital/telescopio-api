@@ -24,6 +24,7 @@ type Event struct {
 	ParticipationEstimatedEndDate *time.Time `json:"participation_estimated_end_date,omitempty" gorm:"type:date"`
 	VotingEstimatedEndDate        *time.Time `json:"voting_estimated_end_date,omitempty" gorm:"type:date"`
 	ShareableLink                 string     `json:"shareable_link,omitempty" gorm:"default:''"`
+	IsCancelled                   bool       `json:"is_cancelled" gorm:"default:false"`
 	CreatedAt                     time.Time  `json:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt                     time.Time  `json:"updated_at" gorm:"autoUpdateTime"`
 }
@@ -87,6 +88,11 @@ func (e *Event) UpdateStage(newStage Stage) error {
 	}
 	e.Stage = newStage
 	return nil
+}
+
+// Cancel marks the event as cancelled.
+func (e *Event) Cancel() {
+	e.IsCancelled = true
 }
 
 // Validate checks if the event data is valid

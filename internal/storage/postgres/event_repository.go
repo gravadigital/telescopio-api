@@ -554,3 +554,22 @@ func (r *PostgresEventRepository) IsEventParticipant(eventID, userID string) (bo
 	}
 	return true, nil
 }
+
+// CancelEvent marks an event as cancelled by setting is_cancelled = true.
+func (r *PostgresEventRepository) CancelEvent(eventID string) error {
+	r.log.Debug("cancelling event", "event_id", eventID)
+
+	eventUUID, err := uuid.Parse(eventID)
+	if err != nil {
+		r.log.Error("invalid event ID format", "event_id", eventID, "error", err)
+		return errors.New("invalid event ID format")
+	}
+
+	if err := r.db.Model(&event.Event{}).Where("id = ?", eventUUID).Update("is_cancelled", true).Error; err != nil {
+		r.log.Error("failed to cancel event", "event_id", eventID, "error", err)
+		return err
+	}
+
+	r.log.Info("event cancelled successfully", "event_id", eventID)
+	return nil
+}

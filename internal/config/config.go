@@ -45,6 +45,17 @@ type Config struct {
 		AllowMethods string
 		AllowHeaders string
 	}
+
+	Email struct {
+		Enabled      bool
+		SMTPHost     string
+		SMTPPort     string
+		SMTPUser     string
+		SMTPPassword string
+		FromAddress  string
+		FromName     string
+		Secure       bool // true = SSL/TLS directo (puerto 465), false = STARTTLS (puerto 587)
+	}
 }
 
 // Load loads configuration from environment variables
@@ -80,6 +91,15 @@ func Load() *Config {
 	config.CORS.AllowOrigins = getEnv("CORS_ALLOW_ORIGINS", "*")
 	config.CORS.AllowMethods = getEnv("CORS_ALLOW_METHODS", "GET,POST,PUT,PATCH,DELETE,HEAD,OPTIONS")
 	config.CORS.AllowHeaders = getEnv("CORS_ALLOW_HEADERS", "Origin,Content-Length,Content-Type,Authorization")
+
+	config.Email.Enabled = getEnvAsBool("EMAIL_ENABLED", false)
+	config.Email.SMTPHost = getEnv("SMTP_HOST", "")
+	config.Email.SMTPPort = getEnv("SMTP_PORT", "587")
+	config.Email.SMTPUser = getEnv("SMTP_USER", "")
+	config.Email.SMTPPassword = getEnv("SMTP_PASSWORD", "")
+	config.Email.FromAddress = getEnv("EMAIL_FROM", "")
+	config.Email.FromName = getEnv("EMAIL_FROM_NAME", "Telescopio")
+	config.Email.Secure = getEnvAsBool("SMTP_SECURE", false)
 
 	return config
 }
