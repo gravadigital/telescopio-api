@@ -419,6 +419,40 @@ func (r *PostgresUserRepository) UsernameExists(username string) (bool, error) {
 	return exists, nil
 }
 
+// SavePasswordResetToken persists only the reset token fields (and password_hash) for a user,
+// bypassing full-model validation that requires all fields to be loaded.
+func (r *PostgresUserRepository) SavePasswordResetToken(user *participant.User) error {
+	return r.db.Model(user).Updates(map[string]interface{}{
+		"password_reset_token":      user.PasswordResetToken,
+		"password_reset_expires_at": user.PasswordResetExpiresAt,
+	}).Error
+}
+
+// ClearPasswordResetToken clears the token fields and saves the new password hash.
+func (r *PostgresUserRepository) ClearPasswordResetToken(user *participant.User) error {
+	return r.db.Model(user).Updates(map[string]interface{}{
+		"password_hash":             user.PasswordHash,
+		"password_reset_token":      nil,
+		"password_reset_expires_at": nil,
+	}).Error
+}
+
+// GetByResetToken busca un usuario por su token de reset de contraseña.
+func (r *PostgresUserRepository) GetByResetToken(token string) (*participant.User, error) {
+	r.log.Debug("retrieving user by reset token")
+
+	var user participant.User
+	if err := r.db.Where("password_reset_token = ?", token).First(&user).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("invalid or expired reset token")
+		}
+		r.log.Error("failed to get user by reset token", "error", err)
+		return nil, fmt.Errorf("failed to get user by reset token: %w", err)
+	}
+
+	return &user, nil
+}
+
 // EmailExists checks if a user with the given email already exists
 func (r *PostgresUserRepository) EmailExists(email string) (bool, error) {
 	r.log.Debug("checking if email exists", "email", email)

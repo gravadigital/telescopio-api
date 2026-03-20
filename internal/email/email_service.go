@@ -53,6 +53,28 @@ func (s *EmailService) SendCancellationNotification(eventName string, recipients
 	return s.send(recipients, cancellationSubject(eventName), cancellationBody(eventName))
 }
 
+// SendEstimatedDateChangeNotification notifica a los participantes que la fecha estimada cambió.
+func (s *EmailService) SendEstimatedDateChangeNotification(eventName, stage, newDate string, recipients []string) error {
+	if !s.cfg.Email.Enabled {
+		s.log.Debug("email disabled, skipping estimated date change notification",
+			"event", eventName, "stage", stage, "recipients", len(recipients))
+		return nil
+	}
+	if len(recipients) == 0 {
+		return nil
+	}
+	return s.send(recipients, estimatedDateChangeSubject(eventName, stage), estimatedDateChangeBody(eventName, stage, newDate))
+}
+
+// SendPasswordResetEmail envía el enlace de recuperación de contraseña al usuario.
+func (s *EmailService) SendPasswordResetEmail(toEmail, resetURL string) error {
+	if !s.cfg.Email.Enabled {
+		s.log.Debug("email disabled, skipping password reset email", "to", toEmail)
+		return nil
+	}
+	return s.send([]string{toEmail}, passwordResetSubject(), passwordResetBody(resetURL))
+}
+
 // send abre una única conexión SMTP y envía un correo individual a cada destinatario.
 // Cada participante solo ve su propio email en el campo To.
 func (s *EmailService) send(recipients []string, subject, body string) error {

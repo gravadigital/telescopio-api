@@ -1,6 +1,8 @@
 package participant
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"time"
 
@@ -35,8 +37,10 @@ type User struct {
 	LastName     string    `json:"lastname" gorm:"column:lastname"`
 	Email        string    `json:"email" gorm:"uniqueIndex;not null"`
 	PasswordHash *string   `json:"-" gorm:"column:password_hash"`
-	GoogleID     *string   `json:"google_id,omitempty" gorm:"column:google_id;uniqueIndex"`
-	Role         Role      `json:"role" gorm:"type:varchar(20);not null;default:'participant'"`
+	GoogleID                *string    `json:"google_id,omitempty" gorm:"column:google_id;uniqueIndex"`
+	Role                    Role       `json:"role" gorm:"type:varchar(20);not null;default:'participant'"`
+	PasswordResetToken      *string    `json:"-" gorm:"column:password_reset_token;uniqueIndex"`
+	PasswordResetExpiresAt  *time.Time `json:"-" gorm:"column:password_reset_expires_at"`
 	CreatedAt    time.Time `json:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt    time.Time `json:"updated_at" gorm:"autoUpdateTime"`
 }
@@ -113,6 +117,32 @@ func (u *User) CheckPassword(password string) bool {
 	}
 	err := bcrypt.CompareHashAndPassword([]byte(*u.PasswordHash), []byte(password))
 	return err == nil
+}
+
+// GeneratePasswordResetToken genera un token seguro y establece su expiración (1 hora).
+func (u *User) GeneratePasswordResetToken() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("failed to generate reset token: %w", err)
+	}
+	token := hex.EncodeToString(b)
+	expires := time.Now().Add(1 * time.Hour)
+	u.PasswordResetToken = &token
+	u.PasswordResetExpiresAt = &expires
+	return token, nil
+}
+
+// ClearPasswordResetToken elimina el token de reset tras su uso.
+func (u *User) ClearPasswordResetToken() {
+	u.PasswordResetToken = nil
+	u.PasswordResetExpiresAt = nil
+}
+
+// IsPasswordResetTokenValid verifica que el token no haya expirado.
+func (u *User) IsPasswordResetTokenValid() bool {
+	return u.PasswordResetToken != nil &&
+		u.PasswordResetExpiresAt != nil &&
+		time.Now().Before(*u.PasswordResetExpiresAt)
 }
 
 // UpdateRole safely updates the user role with validation

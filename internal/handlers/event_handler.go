@@ -616,6 +616,22 @@ func (h *EventHandler) UpdateEstimatedEndDate(c *gin.Context) {
 		"stage", req.Stage,
 		"new_date", req.EstimatedEndDate)
 
+	// Notify participants asynchronously
+	go func() {
+		participants, err := h.userRepo.GetEventParticipants(eventID)
+		if err != nil {
+			h.log.Warn("failed to get participants for estimated date email", "event_id", eventID, "error", err)
+			return
+		}
+		emails := make([]string, 0, len(participants))
+		for _, p := range participants {
+			emails = append(emails, p.Email)
+		}
+		if err := h.emailService.SendEstimatedDateChangeNotification(existingEvent.Name, req.Stage, req.EstimatedEndDate, emails); err != nil {
+			h.log.Warn("failed to send estimated date change emails", "event_id", eventID, "error", err)
+		}
+	}()
+
 	// Build response
 	previousDateStr := ""
 	if currentDate != nil {

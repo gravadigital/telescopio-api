@@ -126,6 +126,12 @@ func GetMigrations() []Migration {
 			Up:   migration018Up,
 			Down: migration018Down,
 		},
+		{
+			ID:   "019",
+			Name: "add_password_reset_to_users",
+			Up:   migration019Up,
+			Down: migration019Down,
+		},
 	}
 }
 

@@ -7,24 +7,27 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gravadigital/telescopio-api/internal/config"
 	"github.com/gravadigital/telescopio-api/internal/domain/participant"
+	"github.com/gravadigital/telescopio-api/internal/email"
 	"github.com/gravadigital/telescopio-api/internal/logger"
 	"github.com/gravadigital/telescopio-api/internal/middleware/auth"
 	"github.com/gravadigital/telescopio-api/internal/storage/postgres"
 )
 
 type UserHandler struct {
-	userRepo  postgres.UserRepository
-	eventRepo postgres.EventRepository
-	config    *config.Config
-	log       *log.Logger
+	userRepo     postgres.UserRepository
+	eventRepo    postgres.EventRepository
+	emailService *email.EmailService
+	config       *config.Config
+	log          *log.Logger
 }
 
-func NewUserHandler(userRepo postgres.UserRepository, eventRepo postgres.EventRepository, cfg *config.Config) *UserHandler {
+func NewUserHandler(userRepo postgres.UserRepository, eventRepo postgres.EventRepository, emailService *email.EmailService, cfg *config.Config) *UserHandler {
 	return &UserHandler{
-		userRepo:  userRepo,
-		eventRepo: eventRepo,
-		config:    cfg,
-		log:       logger.Handler("user"),
+		userRepo:     userRepo,
+		eventRepo:    eventRepo,
+		emailService: emailService,
+		config:       cfg,
+		log:          logger.Handler("user"),
 	}
 }
 
@@ -284,4 +287,117 @@ func (h *UserHandler) GetUserEvents(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"data": response,
 	})
+}
+
+type ForgotPasswordRequest struct {
+	Email string `json:"email" binding:"required,email"`
+}
+
+// ForgotPassword handles POST /api/v1/users/forgot-password
+// Generates a reset token, saves it to the user, and sends a reset email.
+// Always returns 200 to avoid leaking whether an email is registered.
+func (h *UserHandler) ForgotPassword(c *gin.Context) {
+	var req ForgotPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid request payload",
+			"code":  "INVALID_PAYLOAD",
+		})
+		return
+	}
+
+	user, err := h.userRepo.GetByEmail(req.Email)
+	if err != nil || user == nil {
+		// Don't reveal whether the email exists
+		h.log.Debug("forgot-password: email not found, returning 200 anyway", "email", req.Email)
+		c.JSON(http.StatusOK, gin.H{"message": "If that email is registered, a reset link has been sent."})
+		return
+	}
+
+	token, err := user.GeneratePasswordResetToken()
+	if err != nil {
+		h.log.Error("failed to generate password reset token", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to generate reset token",
+			"code":  "TOKEN_GENERATION_ERROR",
+		})
+		return
+	}
+
+	if err := h.userRepo.SavePasswordResetToken(user); err != nil {
+		h.log.Error("failed to save password reset token", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to save reset token",
+			"code":  "DB_ERROR",
+		})
+		return
+	}
+
+	resetURL := h.config.Server.FrontendURL + "/reset-password?token=" + token
+	go func() {
+		if err := h.emailService.SendPasswordResetEmail(user.Email, resetURL); err != nil {
+			h.log.Warn("failed to send password reset email", "email", user.Email, "error", err)
+		}
+	}()
+
+	h.log.Info("password reset email sent", "email", user.Email)
+	c.JSON(http.StatusOK, gin.H{"message": "If that email is registered, a reset link has been sent."})
+}
+
+type ResetPasswordRequest struct {
+	Token    string `json:"token" binding:"required"`
+	Password string `json:"password" binding:"required,min=8"`
+}
+
+// ResetPassword handles POST /api/v1/users/reset-password
+// Validates the token and sets the new password.
+func (h *UserHandler) ResetPassword(c *gin.Context) {
+	var req ResetPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Invalid request payload",
+			"code":    "INVALID_PAYLOAD",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	user, err := h.userRepo.GetByResetToken(req.Token)
+	if err != nil || user == nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid or expired reset token",
+			"code":  "INVALID_RESET_TOKEN",
+		})
+		return
+	}
+
+	if !user.IsPasswordResetTokenValid() {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Reset token has expired",
+			"code":  "EXPIRED_RESET_TOKEN",
+		})
+		return
+	}
+
+	if err := user.SetPassword(req.Password); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+			"code":  "INVALID_PASSWORD",
+		})
+		return
+	}
+
+	user.ClearPasswordResetToken()
+
+	if err := h.userRepo.ClearPasswordResetToken(user); err != nil {
+		h.log.Error("failed to save new password", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to update password",
+			"code":  "DB_ERROR",
+		})
+		return
+	}
+
+	h.log.Info("password reset successfully", "user_id", user.ID)
+	c.JSON(http.StatusOK, gin.H{"message": "Password updated successfully."})
 }

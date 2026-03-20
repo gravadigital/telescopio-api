@@ -80,6 +80,9 @@ type UserRepository interface {
 	GetEventParticipants(eventID string) ([]*participant.UserWithEventRole, error)
 	GetEventParticipantsPaginated(eventID string, params PaginationParams) (*PaginatedResult, error)
 	UsernameExists(username string) (bool, error)
+	GetByResetToken(token string) (*participant.User, error)
+	SavePasswordResetToken(user *participant.User) error
+	ClearPasswordResetToken(user *participant.User) error
 }
 
 // AttachmentRepository define los métodos para interactuar con los archivos adjuntos

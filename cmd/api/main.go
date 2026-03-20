@@ -68,7 +68,7 @@ func main() {
 
 	eventHandler := handlers.NewEventHandler(eventRepo, userRepo, attachmentRepo, emailService, cfg)
 	attachmentHandler := handlers.NewAttachmentHandler(attachmentRepo, eventRepo, userRepo, fileStorage, cfg)
-	userHandler := handlers.NewUserHandler(userRepo, eventRepo, cfg)
+	userHandler := handlers.NewUserHandler(userRepo, eventRepo, emailService, cfg)
 	googleAuthHandler := handlers.NewGoogleAuthHandler(userRepo, cfg)
 
 	configRepo := postgres.NewPostgresVotingConfigurationRepository(db)
@@ -112,8 +112,10 @@ func main() {
 		// User management - Public endpoints (no auth required)
 		users := api.Group("/users")
 		{
-			users.POST("", userHandler.CreateUser)                    // Register new user (returns JWT)
-			users.POST("/authenticate", userHandler.AuthenticateUser) // Login (returns JWT)
+			users.POST("", userHandler.CreateUser)                         // Register new user (returns JWT)
+			users.POST("/authenticate", userHandler.AuthenticateUser)      // Login (returns JWT)
+			users.POST("/forgot-password", userHandler.ForgotPassword)     // Request password reset email
+			users.POST("/reset-password", userHandler.ResetPassword)       // Set new password with token
 		}
 
 		// Google OAuth - Public endpoints (no auth required)
