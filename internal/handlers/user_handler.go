@@ -334,13 +334,11 @@ func (h *UserHandler) ForgotPassword(c *gin.Context) {
 	}
 
 	resetURL := h.config.Server.FrontendURL + "/reset-password?token=" + token
-	go func() {
-		if err := h.emailService.SendPasswordResetEmail(user.Email, resetURL); err != nil {
-			h.log.Warn("failed to send password reset email", "email", user.Email, "error", err)
-		}
-	}()
-
-	h.log.Info("password reset email sent", "email", user.Email)
+	if err := h.emailService.SendPasswordResetEmail(user.Email, resetURL); err != nil {
+		h.log.Error("failed to send password reset email", "email", user.Email, "error", err)
+	} else {
+		h.log.Info("password reset email sent", "email", user.Email)
+	}
 	c.JSON(http.StatusOK, gin.H{"message": "If that email is registered, a reset link has been sent."})
 }
 
