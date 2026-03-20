@@ -2,6 +2,7 @@ package email
 
 import (
 	"crypto/tls"
+	"encoding/base64"
 	"fmt"
 	"net/smtp"
 	"strings"
@@ -10,6 +11,30 @@ import (
 	"github.com/gravadigital/telescopio-api/internal/config"
 	"github.com/gravadigital/telescopio-api/internal/logger"
 )
+
+// loginAuth implementa AUTH LOGIN para servidores que no aceptan AUTH PLAIN de Go.
+type loginAuth struct {
+	username, password string
+}
+
+func (a *loginAuth) Start(_ *smtp.ServerInfo) (string, []byte, error) {
+	return "LOGIN", nil, nil
+}
+
+func (a *loginAuth) Next(fromServer []byte, more bool) ([]byte, error) {
+	if !more {
+		return nil, nil
+	}
+	decoded, _ := base64.StdEncoding.DecodeString(string(fromServer))
+	challenge := strings.ToLower(string(decoded))
+	switch {
+	case strings.Contains(challenge, "username"):
+		return []byte(a.username), nil
+	case strings.Contains(challenge, "password"):
+		return []byte(a.password), nil
+	}
+	return nil, fmt.Errorf("unexpected AUTH LOGIN challenge: %s", fromServer)
+}
 
 // EmailService handles sending email notifications via SMTP.
 type EmailService struct {
@@ -102,7 +127,7 @@ func (s *EmailService) send(recipients []string, subject, body string) error {
 // Soporta SSL/TLS directo (puerto 465, SMTP_SECURE=true) y STARTTLS (puerto 587).
 func (s *EmailService) newClient() (*smtp.Client, error) {
 	addr := s.cfg.Email.SMTPHost + ":" + s.cfg.Email.SMTPPort
-	auth := smtp.PlainAuth("", s.cfg.Email.SMTPUser, s.cfg.Email.SMTPPassword, s.cfg.Email.SMTPHost)
+	auth := &loginAuth{username: s.cfg.Email.SMTPUser, password: s.cfg.Email.SMTPPassword}
 
 	var client *smtp.Client
 	if s.cfg.Email.Secure {
