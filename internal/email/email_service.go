@@ -25,8 +25,11 @@ func (a *loginAuth) Next(fromServer []byte, more bool) ([]byte, error) {
 	if !more {
 		return nil, nil
 	}
-	decoded, _ := base64.StdEncoding.DecodeString(string(fromServer))
-	challenge := strings.ToLower(string(decoded))
+	// El servidor puede mandar el challenge en base64 o en texto plano
+	challenge := strings.ToLower(string(fromServer))
+	if decoded, err := base64.StdEncoding.DecodeString(string(fromServer)); err == nil {
+		challenge = strings.ToLower(string(decoded))
+	}
 	switch {
 	case strings.Contains(challenge, "username"):
 		return []byte(a.username), nil
