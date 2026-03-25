@@ -100,6 +100,16 @@ func (h *AttachmentHandler) UploadAttachment(c *gin.Context) {
 		return
 	}
 
+	// Block upload if event is paused
+	if eventEntity.IsPaused {
+		h.log.Warn("upload attempt on paused event", "event_id", eventID)
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "This event is currently paused. File uploads are not available.",
+			"code":  "EVENT_PAUSED",
+		})
+		return
+	}
+
 	// Check if participant exists
 	participant, err := h.userRepo.GetByID(participantID)
 	if err != nil {

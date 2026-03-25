@@ -132,6 +132,12 @@ func GetMigrations() []Migration {
 			Up:   migration019Up,
 			Down: migration019Down,
 		},
+		{
+			ID:   "020",
+			Name: "add_is_paused_to_events",
+			Up:   migration020Up,
+			Down: migration020Down,
+		},
 	}
 }
 

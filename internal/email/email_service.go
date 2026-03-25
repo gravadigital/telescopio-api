@@ -94,6 +94,19 @@ func (s *EmailService) SendEstimatedDateChangeNotification(eventName, stage, new
 	return s.send(recipients, estimatedDateChangeSubject(eventName, stage), estimatedDateChangeBody(eventName, stage, newDate))
 }
 
+// SendPauseNotification notifica a los participantes que el evento fue pausado.
+func (s *EmailService) SendPauseNotification(eventName string, recipients []string) error {
+	if !s.cfg.Email.Enabled {
+		s.log.Debug("email disabled, skipping pause notification",
+			"event", eventName, "recipients", len(recipients))
+		return nil
+	}
+	if len(recipients) == 0 {
+		return nil
+	}
+	return s.send(recipients, pauseSubject(eventName), pauseBody(eventName))
+}
+
 // SendPasswordResetEmail envía el enlace de recuperación de contraseña al usuario.
 func (s *EmailService) SendPasswordResetEmail(toEmail, resetURL string) error {
 	if !s.cfg.Email.Enabled {

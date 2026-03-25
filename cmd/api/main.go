@@ -164,6 +164,11 @@ func main() {
 				auth.RequireEventOwner(eventRepo),
 				eventHandler.CancelEvent)
 
+			// Pause/resume event - Only event owner or admin
+			events.PATCH("/:event_id/pause",
+				auth.RequireEventOwner(eventRepo),
+				eventHandler.PauseEvent)
+
 			// Get event participants - Any authenticated user
 			events.GET("/:event_id/participants", eventHandler.GetEventParticipants)
 

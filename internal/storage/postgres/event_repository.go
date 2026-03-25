@@ -555,6 +555,25 @@ func (r *PostgresEventRepository) IsEventParticipant(eventID, userID string) (bo
 	return true, nil
 }
 
+// PauseEvent toggles the is_paused field of an event.
+func (r *PostgresEventRepository) PauseEvent(eventID string, paused bool) error {
+	r.log.Debug("toggling event pause", "event_id", eventID, "paused", paused)
+
+	eventUUID, err := uuid.Parse(eventID)
+	if err != nil {
+		r.log.Error("invalid event ID format", "event_id", eventID, "error", err)
+		return errors.New("invalid event ID format")
+	}
+
+	if err := r.db.Model(&event.Event{}).Where("id = ?", eventUUID).Update("is_paused", paused).Error; err != nil {
+		r.log.Error("failed to toggle event pause", "event_id", eventID, "error", err)
+		return err
+	}
+
+	r.log.Info("event pause toggled", "event_id", eventID, "paused", paused)
+	return nil
+}
+
 // CancelEvent marks an event as cancelled by setting is_cancelled = true.
 func (r *PostgresEventRepository) CancelEvent(eventID string) error {
 	r.log.Debug("cancelling event", "event_id", eventID)

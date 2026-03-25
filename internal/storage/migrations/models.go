@@ -95,6 +95,7 @@ type Event struct {
 	EndDate     time.Time  `gorm:"not null" json:"end_date"`
 	Stage       EventStage `gorm:"type:event_stage;not null;default:'creation'" json:"stage"`
 	IsCancelled bool       `gorm:"default:false" json:"is_cancelled"`
+	IsPaused    bool       `gorm:"default:false" json:"is_paused"`
 	CreatedAt   time.Time  `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt   time.Time  `gorm:"autoUpdateTime" json:"updated_at"`
 

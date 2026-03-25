@@ -65,6 +65,7 @@ type EventRepository interface {
 	IsEventCreator(eventID, userID string) (bool, error)
 	IsEventParticipant(eventID, userID string) (bool, error)
 	CancelEvent(eventID string) error
+	PauseEvent(eventID string, paused bool) error
 }
 
 // UserRepository define los métodos para interactuar con los usuarios en la DB.

@@ -584,8 +584,8 @@ func (h *EventHandler) UpdateEstimatedEndDate(c *gin.Context) {
 		currentDate = existingEvent.VotingEstimatedEndDate
 	}
 
-	// If there's a current date that hasn't passed, validate we're only postponing
-	if currentDate != nil && !currentDate.Before(today) && newDate.Before(*currentDate) {
+	// Removed restriction: organizer can freely change estimated end date (advance or postpone)
+	if false && currentDate != nil && !currentDate.Before(today) && newDate.Before(*currentDate) {
 		h.log.Warn("attempt to advance deadline",
 			"event_id", eventID,
 			"current_date", currentDate.Format("2006-01-02"),
@@ -713,6 +713,16 @@ func (h *EventHandler) RegisterParticipant(c *gin.Context) {
 			"error":         "Participant registration is only allowed during participation stage",
 			"code":          "INVALID_REGISTRATION_STAGE",
 			"current_stage": eventObj.Stage.String(),
+		})
+		return
+	}
+
+	// Block registration if event is paused
+	if eventObj.IsPaused {
+		h.log.Warn("registration attempt on paused event", "event_id", eventID)
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "This event is currently paused. Registration is not available.",
+			"code":  "EVENT_PAUSED",
 		})
 		return
 	}
@@ -1006,6 +1016,8 @@ func (h *EventHandler) GetAllEvents(c *gin.Context) {
 			"participation_estimated_end_date": formatDatePtr(evt.ParticipationEstimatedEndDate),
 			"voting_estimated_end_date":        formatDatePtr(evt.VotingEstimatedEndDate),
 			"participant_ids":                  participantIDs,
+			"is_cancelled":                     evt.IsCancelled,
+			"is_paused":                        evt.IsPaused,
 			"created_at":                       evt.CreatedAt,
 			"updated_at":                       evt.UpdatedAt,
 		}
@@ -1112,6 +1124,8 @@ func (h *EventHandler) GetEvent(c *gin.Context) {
 			"voting_estimated_end_date":        formatDatePtr(eventObj.VotingEstimatedEndDate),
 			"participant_ids":                  participantIDs,
 			"attachment_count":                 attachmentCount,
+			"is_cancelled":                     eventObj.IsCancelled,
+			"is_paused":                        eventObj.IsPaused,
 			"created_at":                       eventObj.CreatedAt,
 			"updated_at":                       eventObj.UpdatedAt,
 		},
@@ -1535,6 +1549,90 @@ func (h *EventHandler) CancelEvent(c *gin.Context) {
 		},
 		"message": "Event cancelled successfully",
 		"code":    "EVENT_CANCELLED",
+	})
+}
+
+// PauseEvent handles PATCH /api/v1/events/{event_id}/pause
+// Toggles the paused state of an event. Notifies participants when pausing.
+func (h *EventHandler) PauseEvent(c *gin.Context) {
+	eventID := c.Param("event_id")
+
+	h.log.Debug("toggling event pause", "event_id", eventID)
+
+	if _, err := uuid.Parse(eventID); err != nil {
+		h.log.Warn("invalid event_id format", "event_id", eventID, "error", err)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid event_id format",
+			"code":  "INVALID_EVENT_ID",
+		})
+		return
+	}
+
+	existingEvent, err := h.eventRepo.GetByID(eventID)
+	if err != nil {
+		h.log.Error("event not found", "event_id", eventID, "error", err)
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "Event not found",
+			"code":  "EVENT_NOT_FOUND",
+		})
+		return
+	}
+
+	if existingEvent.IsCancelled {
+		h.log.Warn("cannot pause cancelled event", "event_id", eventID)
+		c.JSON(http.StatusConflict, gin.H{
+			"error": "Cannot pause a cancelled event",
+			"code":  "EVENT_CANCELLED",
+		})
+		return
+	}
+
+	newPausedState := !existingEvent.IsPaused
+	if err := h.eventRepo.PauseEvent(eventID, newPausedState); err != nil {
+		h.log.Error("failed to toggle event pause", "event_id", eventID, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to update event",
+			"code":  "UPDATE_ERROR",
+		})
+		return
+	}
+
+	h.log.Info("event pause toggled", "event_id", eventID, "is_paused", newPausedState)
+
+	// Notify participants when pausing (not when unpausing)
+	if newPausedState {
+		go func() {
+			participants, err := h.userRepo.GetEventParticipants(eventID)
+			if err != nil {
+				h.log.Warn("failed to get participants for pause email", "event_id", eventID, "error", err)
+				return
+			}
+			emails := make([]string, 0, len(participants))
+			for _, p := range participants {
+				emails = append(emails, p.Email)
+			}
+			if err := h.emailService.SendPauseNotification(existingEvent.Name, emails); err != nil {
+				h.log.Warn("failed to send pause emails", "event_id", eventID, "error", err)
+			}
+		}()
+	}
+
+	message := "Event paused successfully"
+	code := "EVENT_PAUSED"
+	if !newPausedState {
+		message = "Event resumed successfully"
+		code = "EVENT_RESUMED"
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data": gin.H{
+			"id":        existingEvent.ID.String(),
+			"name":      existingEvent.Name,
+			"stage":     existingEvent.Stage.String(),
+			"is_paused": newPausedState,
+		},
+		"message": message,
+		"code":    code,
 	})
 }
 

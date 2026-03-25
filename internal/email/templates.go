@@ -72,6 +72,24 @@ El equipo de Telescopio
 `, resetURL)
 }
 
+func pauseSubject(eventName string) string {
+	return fmt.Sprintf("[Telescopio] El evento «%s» fue pausado", eventName)
+}
+
+func pauseBody(eventName string) string {
+	return fmt.Sprintf(`Hola,
+
+Te informamos que el evento «%s» en el que participas ha sido pausado temporalmente.
+
+Durante la pausa no es posible registrarse ni enviar archivos al evento.
+
+Ingresá a Telescopio para más información.
+
+Saludos,
+El equipo de Telescopio
+`, eventName)
+}
+
 func stageLabel(stage string) string {
 	labels := map[string]string{
 		"creation":      "Creación",
